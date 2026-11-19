@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-size: 15.5px;
+  }
+  body {
+    @apply bg-[#f4f7fb] text-slate-800 antialiased font-sans text-sm;
+    margin: 0;
+    padding: 0;
+  }
+}
