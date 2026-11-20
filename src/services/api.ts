@@ -1,10 +1,13 @@
 import axios from 'axios';
 
 const getApiBaseUrl = () => {
-  const envUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000/api/v1';
-  let cleanUrl = envUrl.trim();
-  if (cleanUrl.endsWith('/')) cleanUrl = cleanUrl.slice(0, -1);
-  return cleanUrl.includes('/api/v1') ? cleanUrl : `${cleanUrl}/api/v1`;
+  const envUrl = import.meta.env.VITE_API_URL;
+
+  if (!envUrl) {
+    throw new Error("VITE_API_URL is not configured");
+  }
+
+  return envUrl.trim().replace(/\/+$/, "").replace(/\/api\/v1$/, "") + "/api/v1";
 };
 
 const API_BASE_URL = getApiBaseUrl();
@@ -16,6 +19,7 @@ export const api = axios.create({
   },
   withCredentials: true,
 });
+
 
 // Request Interceptor: Attach JWT Bearer token
 api.interceptors.request.use(

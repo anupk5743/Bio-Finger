@@ -125,9 +125,8 @@ export const BiometricFingerprintView: React.FC<BiometricFingerprintViewProps> =
     return (
       <div
         onClick={onClick}
-        className={`${containerDimension} rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center text-slate-400 p-2 mx-auto transition-all ${
-          onClick ? 'cursor-pointer hover:border-brand-primary hover:text-brand-primary hover:bg-indigo-50/20' : ''
-        } ${className}`}
+        className={`${containerDimension} rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center text-slate-400 p-2 mx-auto transition-all ${onClick ? 'cursor-pointer hover:border-brand-primary hover:text-brand-primary hover:bg-indigo-50/20' : ''
+          } ${className}`}
         title={`Click to enroll ${fingerIndex.replace('_', ' ')}`}
       >
         <FingerprintIcon className="w-10 h-10 opacity-35 mb-1.5" />
@@ -140,9 +139,8 @@ export const BiometricFingerprintView: React.FC<BiometricFingerprintViewProps> =
   return (
     <div
       onClick={onClick}
-      className={`relative group ${containerDimension} rounded-2xl bg-black border-2 border-slate-900 shadow-md flex flex-col items-center justify-between p-2 mx-auto overflow-hidden transition-all ${
-        onClick ? 'cursor-pointer hover:ring-2 hover:ring-brand-primary hover:shadow-lg' : ''
-      } ${className}`}
+      className={`relative group ${containerDimension} rounded-2xl bg-black border-2 border-slate-900 shadow-md flex flex-col items-center justify-between p-2 mx-auto overflow-hidden transition-all ${onClick ? 'cursor-pointer hover:ring-2 hover:ring-brand-primary hover:shadow-lg' : ''
+        } ${className}`}
       title={`${fingerIndex.replace('_', ' ')} - Enrolled (${qualityScore}% Quality)`}
     >
       {/* Full Biometric Graphic covering container completely */}

@@ -117,10 +117,9 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
       ) : (
         <div
           onClick={!isReadOnly && !isScanning ? handleScan : undefined}
-          className={`w-28 h-36 sm:w-32 sm:h-40 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-2.5 transition-all ${
-            isScanning
-              ? 'border-brand-primary bg-indigo-50/50 text-brand-primary animate-pulse'
-              : isReadOnly
+          className={`w-28 h-36 sm:w-32 sm:h-40 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-2.5 transition-all ${isScanning
+            ? 'border-brand-primary bg-indigo-50/50 text-brand-primary animate-pulse'
+            : isReadOnly
               ? 'border-slate-200 bg-slate-50 text-slate-300 cursor-not-allowed'
               : 'border-slate-300 hover:border-brand-primary bg-white hover:bg-indigo-50/20 text-slate-400 hover:text-brand-primary cursor-pointer'
             }`}
