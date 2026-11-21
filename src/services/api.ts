@@ -12,7 +12,7 @@ const getApiBaseUrl = () => {
     envUrl
       .trim()
       .replace(/\/+$/, '')
-      .replace(/\/api(?:\/v1)?$/, '') + '/api/v1'
+      .replace(/\/api(?:\/v1)?$/, '') + '/api'
   );
 };
 
