@@ -1,13 +1,19 @@
+
 import axios from 'axios';
 
 const getApiBaseUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL;
 
   if (!envUrl) {
-    throw new Error("VITE_API_URL is not configured");
+    throw new Error('VITE_API_URL is not configured');
   }
 
-  return envUrl.trim().replace(/\/+$/, "").replace(/\/api\/v1$/, "") + "/api/v1";
+  return (
+    envUrl
+      .trim()
+      .replace(/\/+$/, '')
+      .replace(/\/api(?:\/v1)?$/, '') + '/api'
+  );
 };
 
 const API_BASE_URL = getApiBaseUrl();
@@ -20,14 +26,15 @@ export const api = axios.create({
   withCredentials: true,
 });
 
-
 // Request Interceptor: Attach JWT Bearer token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('biofinger_access_token');
+
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -35,7 +42,11 @@ api.interceptors.request.use(
 
 // Response Interceptor: Auto refresh token on 401
 let isRefreshing = false;
-let failedQueue: Array<{ resolve: (value?: unknown) => void; reject: (reason?: any) => void }> = [];
+
+let failedQueue: Array<{
+  resolve: (value?: unknown) => void;
+  reject: (reason?: any) => void;
+}> = [];
 
 const processQueue = (error: any, token: string | null = null) => {
   failedQueue.forEach((prom) => {
@@ -45,6 +56,7 @@ const processQueue = (error: any, token: string | null = null) => {
       prom.resolve(token);
     }
   });
+
   failedQueue = [];
 };
 
@@ -53,7 +65,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/auth/login')) {
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/auth/login')
+    ) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -68,39 +85,59 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = localStorage.getItem('biofinger_refresh_token');
+      const refreshToken = localStorage.getItem(
+        'biofinger_refresh_token'
+      );
 
       if (!refreshToken) {
         isRefreshing = false;
+
         localStorage.removeItem('biofinger_access_token');
         localStorage.removeItem('biofinger_refresh_token');
         localStorage.removeItem('biofinger_user');
+
         window.location.href = '/login';
+
         return Promise.reject(error);
       }
 
       try {
-        const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-          refreshToken,
-        }, { withCredentials: true });
+        const response = await axios.post(
+          `${API_BASE_URL}/auth/refresh`,
+          { refreshToken },
+          { withCredentials: true }
+        );
 
-        const { accessToken, refreshToken: newRefreshToken } = response.data.data;
+        const {
+          accessToken,
+          refreshToken: newRefreshToken,
+        } = response.data.data;
+
         localStorage.setItem('biofinger_access_token', accessToken);
+
         if (newRefreshToken) {
-          localStorage.setItem('biofinger_refresh_token', newRefreshToken);
+          localStorage.setItem(
+            'biofinger_refresh_token',
+            newRefreshToken
+          );
         }
 
         api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
+
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
 
         processQueue(null, accessToken);
+
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
+
         localStorage.removeItem('biofinger_access_token');
         localStorage.removeItem('biofinger_refresh_token');
         localStorage.removeItem('biofinger_user');
+
         window.location.href = '/login';
+
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
