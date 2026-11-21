@@ -3,6 +3,7 @@ import { CheckCircle2, RotateCcw, Loader2, Fingerprint as FingerprintIcon } from
 import { mfs100Service } from '../../services/mfs100.service';
 import toast from 'react-hot-toast';
 import { FingerprintPattern } from '../biometrics/BiometricFingerprintView';
+import { DEFAULT_FINGERPRINTS, PHYSICAL_FINGERPRINT_1 } from '../../assets/fingerprints';
 
 export interface FingerprintData {
   fingerIndex: 'FINGER_1' | 'FINGER_2' | 'FINGER_3';
@@ -48,7 +49,7 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
           qualityScore: result.qualityScore,
           deviceModel: 'MFS100',
           scannedAt: new Date().toISOString(),
-          previewImage: result.previewImage,
+          previewImage: result.previewImage || DEFAULT_FINGERPRINTS[fingerIndex] || PHYSICAL_FINGERPRINT_1,
         });
       } else {
         toast.error(`Capture issue: ${result.errorDescription}`, { id: 'scan-toast' });

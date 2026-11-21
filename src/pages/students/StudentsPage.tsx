@@ -421,53 +421,38 @@ export const StudentsPage: React.FC = () => {
 
                     {/* FINGER 1 matching exact video & screenshot 3 */}
                     <td className="py-3 px-4 text-center">
-                      <div
+                      <BiometricFingerprintView
+                        fingerIndex="FINGER_1"
+                        isEnrolled={true}
+                        qualityScore={student.finger1?.qualityScore || 88}
+                        showQualityBadge={false}
+                        size="sm"
                         onClick={() => navigate(`/students/${student.id}`)}
-                        className="w-24 h-32 rounded-2xl bg-black border-2 border-slate-900 shadow-md flex items-center justify-center p-2 mx-auto cursor-pointer hover:ring-2 hover:ring-brand-primary transition-all overflow-hidden"
-                        title="Click to view full biometric details"
-                      >
-                        <BiometricFingerprintView
-                          fingerIndex="FINGER_1"
-                          isEnrolled={true}
-                          qualityScore={student.finger1?.qualityScore || 88}
-                          showQualityBadge={false}
-                          size="sm"
-                        />
-                      </div>
+                      />
                     </td>
 
                     {/* FINGER 2 matching exact video & screenshot 3 */}
                     <td className="py-3 px-4 text-center">
-                      <div
+                      <BiometricFingerprintView
+                        fingerIndex="FINGER_2"
+                        isEnrolled={true}
+                        qualityScore={student.finger2?.qualityScore || 88}
+                        showQualityBadge={false}
+                        size="sm"
                         onClick={() => navigate(`/students/${student.id}`)}
-                        className="w-24 h-32 rounded-2xl bg-black border-2 border-slate-900 shadow-md flex items-center justify-center p-2 mx-auto cursor-pointer hover:ring-2 hover:ring-brand-primary transition-all overflow-hidden"
-                        title="Click to view full biometric details"
-                      >
-                        <BiometricFingerprintView
-                          fingerIndex="FINGER_2"
-                          isEnrolled={true}
-                          qualityScore={student.finger2?.qualityScore || 88}
-                          showQualityBadge={false}
-                          size="sm"
-                        />
-                      </div>
+                      />
                     </td>
 
                     {/* FINGER 3 matching exact video & screenshot 3 */}
                     <td className="py-3 px-4 text-center">
-                      <div
+                      <BiometricFingerprintView
+                        fingerIndex="FINGER_3"
+                        isEnrolled={true}
+                        qualityScore={student.finger3?.qualityScore || 88}
+                        showQualityBadge={false}
+                        size="sm"
                         onClick={() => navigate(`/students/${student.id}`)}
-                        className="w-24 h-32 rounded-2xl bg-black border-2 border-slate-900 shadow-md flex items-center justify-center p-2 mx-auto cursor-pointer hover:ring-2 hover:ring-brand-primary transition-all overflow-hidden"
-                        title="Click to view full biometric details"
-                      >
-                        <BiometricFingerprintView
-                          fingerIndex="FINGER_3"
-                          isEnrolled={true}
-                          qualityScore={student.finger3?.qualityScore || 88}
-                          showQualityBadge={false}
-                          size="sm"
-                        />
-                      </div>
+                      />
                     </td>
 
                     {/* ACTION Menu matching Screenshot 3 */}
