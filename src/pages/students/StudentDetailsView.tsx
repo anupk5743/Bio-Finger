@@ -96,6 +96,10 @@ export const StudentDetailsView: React.FC<StudentDetailsViewProps> = ({
               <div className="w-full aspect-[3/4] max-w-[220px] mx-auto sm:mx-0 rounded-2xl bg-black border-2 border-slate-900 shadow-lg p-2.5 flex items-center justify-center overflow-hidden transition-transform hover:scale-[1.02]">
                 <FingerprintPattern
                   type="FINGER_1"
+                  previewImage={student.finger1?.previewImage}
+                  seed={`${student.id}_FINGER_1`}
+                  isEnrolled={!!student.finger1?.isEnrolled}
+                  qualityScore={student.finger1?.qualityScore}
                   className="w-full h-full object-contain filter contrast-125"
                 />
               </div>
@@ -104,6 +108,10 @@ export const StudentDetailsView: React.FC<StudentDetailsViewProps> = ({
               <div className="w-full aspect-[3/4] max-w-[220px] mx-auto sm:mx-0 rounded-2xl bg-black border-2 border-slate-900 shadow-lg p-2.5 flex items-center justify-center overflow-hidden transition-transform hover:scale-[1.02]">
                 <FingerprintPattern
                   type="FINGER_2"
+                  previewImage={student.finger2?.previewImage}
+                  seed={`${student.id}_FINGER_2`}
+                  isEnrolled={!!student.finger2?.isEnrolled}
+                  qualityScore={student.finger2?.qualityScore}
                   className="w-full h-full object-contain filter contrast-125"
                 />
               </div>
@@ -112,6 +120,10 @@ export const StudentDetailsView: React.FC<StudentDetailsViewProps> = ({
               <div className="w-full aspect-[3/4] max-w-[220px] mx-auto sm:mx-0 rounded-2xl bg-black border-2 border-slate-900 shadow-lg p-2.5 flex items-center justify-center overflow-hidden transition-transform hover:scale-[1.02]">
                 <FingerprintPattern
                   type="FINGER_3"
+                  previewImage={student.finger3?.previewImage}
+                  seed={`${student.id}_FINGER_3`}
+                  isEnrolled={!!student.finger3?.isEnrolled}
+                  qualityScore={student.finger3?.qualityScore}
                   className="w-full h-full object-contain filter contrast-125"
                 />
               </div>

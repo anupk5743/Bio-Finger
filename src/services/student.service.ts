@@ -12,6 +12,7 @@ export interface StudentFingerprint {
   qualityScore: number;
   deviceModel: string;
   scannedAt?: string;
+  previewImage?: string;
 }
 
 export interface CreateStudentPayload {

@@ -45,6 +45,7 @@ export interface FingerprintSlot {
   isEnrolled: boolean;
   qualityScore: number;
   createdAt?: string;
+  previewImage?: string | null;
 }
 
 export interface Student {

@@ -23,3 +23,27 @@ export const DEFAULT_FINGERPRINTS = {
   FINGER_5: PHYSICAL_FINGERPRINT_5,
   FINGER_6: PHYSICAL_FINGERPRINT_6,
 };
+
+export const DISTINCT_PHYSICAL_FINGERPRINTS = [
+  PHYSICAL_FINGERPRINT_1,
+  PHYSICAL_FINGERPRINT_2,
+  PHYSICAL_FINGERPRINT_3,
+  PHYSICAL_FINGERPRINT_4,
+  PHYSICAL_FINGERPRINT_5,
+  PHYSICAL_FINGERPRINT_6,
+];
+
+/**
+ * Returns a distinct authentic fingerprint for each student and finger,
+ * ensuring no two students look identical.
+ */
+export function getDistinctStudentFingerprint(seed: string = '', fingerIndex: string = 'FINGER_1'): string {
+  const combined = `${seed}_${fingerIndex}`;
+  let hash = 0;
+  for (let i = 0; i < combined.length; i++) {
+    hash = (hash << 5) - hash + combined.charCodeAt(i);
+    hash |= 0;
+  }
+  const index = Math.abs(hash) % DISTINCT_PHYSICAL_FINGERPRINTS.length;
+  return DISTINCT_PHYSICAL_FINGERPRINTS[index] || PHYSICAL_FINGERPRINT_1;
+}

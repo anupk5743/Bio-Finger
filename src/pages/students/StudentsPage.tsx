@@ -408,6 +408,7 @@ export const StudentsPage: React.FC = () => {
         qualityScore: finger.qualityScore,
         deviceModel: finger.deviceModel,
         scannedAt: finger.scannedAt,
+        previewImage: finger.previewImage,
       };
     });
   };
@@ -728,48 +729,45 @@ export const StudentsPage: React.FC = () => {
                     </td>
 
                     {/* FINGER 1 */}
-
-                    <td className="py-3 px-4 text-center">
-
+                    <td className="py-4 px-3 text-center min-w-[140px]">
                       <BiometricFingerprintView
                         fingerIndex="FINGER_1"
                         isEnrolled={!!student.finger1?.isEnrolled}
                         qualityScore={student.finger1?.qualityScore ?? 0}
-                        showQualityBadge={false}
-                        size="sm"
+                        previewImage={student.finger1?.previewImage}
+                        seed={`${student.id || student.mobileNumber}_FINGER_1`}
+                        showQualityBadge={true}
+                        size="md"
                         onClick={() => navigate(`/students/${student.id}`)}
                       />
-
                     </td>
 
                     {/* FINGER 2 */}
-
-                    <td className="py-3 px-4 text-center">
-
+                    <td className="py-4 px-3 text-center min-w-[140px]">
                       <BiometricFingerprintView
                         fingerIndex="FINGER_2"
                         isEnrolled={!!student.finger2?.isEnrolled}
                         qualityScore={student.finger2?.qualityScore ?? 0}
-                        showQualityBadge={false}
-                        size="sm"
+                        previewImage={student.finger2?.previewImage}
+                        seed={`${student.id || student.mobileNumber}_FINGER_2`}
+                        showQualityBadge={true}
+                        size="md"
                         onClick={() => navigate(`/students/${student.id}`)}
                       />
-
                     </td>
 
                     {/* FINGER 3 */}
-
-                    <td className="py-3 px-4 text-center">
-
+                    <td className="py-4 px-3 text-center min-w-[140px]">
                       <BiometricFingerprintView
                         fingerIndex="FINGER_3"
                         isEnrolled={!!student.finger3?.isEnrolled}
                         qualityScore={student.finger3?.qualityScore ?? 0}
-                        showQualityBadge={false}
-                        size="sm"
+                        previewImage={student.finger3?.previewImage}
+                        seed={`${student.id || student.mobileNumber}_FINGER_3`}
+                        showQualityBadge={true}
+                        size="md"
                         onClick={() => navigate(`/students/${student.id}`)}
                       />
-
                     </td>
 
                     {/* ACTION MENU */}
