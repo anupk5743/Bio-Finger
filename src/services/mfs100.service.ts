@@ -1,9 +1,5 @@
-/**
- * Mantra MFS100 Official Client Service Integration
- * Primary URL: https://localhost:8003/mfs100
- * Controls physical scanner hardware: turns on red sensor LED, waits for touch, captures real biometric minutiae and bitmap.
- * NO AUTOMATIC DUMMY/FAKE FINGERPRINTS.
- */
+
+const MFS100_BASE_URL = 'https://localhost:8003/mfs100';
 
 export interface MFS100CaptureResult {
   success: boolean;
@@ -28,183 +24,298 @@ export interface DeviceStatusResult {
   height?: number;
 }
 
+interface MFS100InfoResponse {
+  ErrorCode?: number | string;
+  ErrorDescription?: string;
+  DeviceInfo?: {
+    Model?: string;
+    SerialNo?: string;
+    Width?: number;
+    Height?: number;
+  };
+}
+
+interface MFS100CaptureResponse {
+  ErrorCode?: number | string;
+  ErrorDescription?: string;
+  Quality?: number | string;
+  BitmapData?: string;
+  IsoTemplate?: string;
+  AnsiTemplate?: string;
+  RawData?: string;
+}
+
 export class MFS100Service {
-  // Candidate URLs in priority order: user specified https://localhost:8003/mfs100 first
-  private candidateUrls = [
-    'https://localhost:8003/mfs100',
-    'http://localhost:8003/mfs100',
-    'https://127.0.0.1:8003/mfs100',
-    'http://127.0.0.1:8003/mfs100',
-    'https://localhost:8004/mfs100',
-    'http://localhost:8004/mfs100',
-    'http://127.0.0.1:8004',
-  ];
+  private readonly baseUrl = MFS100_BASE_URL;
+  private activeBaseUrl = MFS100_BASE_URL;
 
-  private activeBaseUrl: string = 'https://localhost:8003/mfs100';
-  private isDeviceConnected: boolean = false;
-
-  /**
-   * Check connection to Mantra MFS100 Client Service
-   */
-  async checkDevice(): Promise<DeviceStatusResult> {
-    for (const baseUrl of this.candidateUrls) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
-
-        // Mantra Client Service supports POST and GET /info
-        const response = await fetch(`${baseUrl}/info`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({}),
-          signal: controller.signal,
-        }).catch(async () => {
-          // Fallback to GET /info if POST is blocked
-          return await fetch(`${baseUrl}/info`, {
-            method: 'GET',
-            signal: controller.signal,
-          });
-        });
-
-        clearTimeout(timeoutId);
-
-        if (response && response.ok) {
-          const contentType = response.headers.get('content-type') || '';
-          if (contentType.includes('json') || response.status === 200) {
-            const data = await response.json().catch(() => null);
-
-            // Mantra Client Service response check
-            const isSuccess = data ? (data.ErrorCode === '0' || data.ErrorCode === 0 || !data.ErrorCode) : true;
-            this.activeBaseUrl = baseUrl;
-            this.isDeviceConnected = true;
-
-            const devInfo = data?.DeviceInfo || {};
-            return {
-              connected: true,
-              status: 'READY',
-              url: baseUrl,
-              deviceModel: devInfo.Model || 'Mantra MFS100',
-              serialNumber: devInfo.SerialNo || '',
-              width: devInfo.Width || 316,
-              height: devInfo.Height || 354,
-              message: `Mantra MFS100 Connected on ${baseUrl}! Scanner ready.`,
-            };
-          }
-        }
-      } catch (err: any) {
-        // Continue checking next candidate URL
-      }
+  private getErrorCode(value: unknown): number {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : -1;
     }
 
-    this.isDeviceConnected = false;
-    return {
-      connected: false,
-      status: 'NOT_RUNNING',
-      url: this.activeBaseUrl,
-      message: 'Mantra MFS100 Client Service not responding at https://localhost:8003/mfs100. Please ensure Mantra MFS100 driver & client service are running.',
-    };
+    if (typeof value === 'string' && value.trim() !== '') {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : -1;
+    }
+
+    return -1;
   }
 
-  /**
-   * Triggers physical biometric scan on the Mantra MFS100 device.
-   * TURNS ON THE SCANNER'S RED LED LIGHT and waits for the user to touch the glass.
-   * If physical capture fails or timeout occurs, RETURNS AN ERROR.
-   * DOES NOT AUTOMATICALLY ADD DUMMY OR FAKE FINGERPRINTS.
-   */
-  async capture(qualityThreshold: number = 60, timeoutSeconds: number = 10): Promise<MFS100CaptureResult> {
-    const candidateUrlsToTry = [
-      this.activeBaseUrl,
-      'https://localhost:8003/mfs100',
-      'http://localhost:8003/mfs100',
-      'https://127.0.0.1:8003/mfs100',
-      'http://127.0.0.1:8003/mfs100',
-      'https://localhost:8004/mfs100',
-      'http://localhost:8004/mfs100',
-    ];
+  private async post<T>(
+    endpoint: string,
+    payload: Record<string, unknown>,
+    timeoutMs: number
+  ): Promise<T> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      timeoutMs
+    );
 
-    // Remove duplicates while preserving priority
-    const uniqueUrls = Array.from(new Set(candidateUrlsToTry));
-
-    let lastError = 'Mantra MFS100 Client Service not reachable on https://localhost:8003/mfs100';
-
-    for (const baseUrl of uniqueUrls) {
-      try {
-        const controller = new AbortController();
-        // Give 2 seconds extra beyond the hardware timeout for network round-trip
-        const networkTimeout = (timeoutSeconds + 3) * 1000;
-        const timeoutId = setTimeout(() => controller.abort(), networkTimeout);
-
-        const payload = {
-          Quality: qualityThreshold,
-          TimeOut: timeoutSeconds,
-        };
-
-        const response = await fetch(`${baseUrl}/capture`, {
+    try {
+      const response = await fetch(
+        `${this.activeBaseUrl}/${endpoint}`,
+        {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(payload),
           signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
-
-        if (response && response.ok) {
-          const data = await response.json();
-          this.activeBaseUrl = baseUrl;
-          this.isDeviceConnected = true;
-
-          const errCode = parseInt(data.ErrorCode ?? '-1', 10);
-          const errDesc = data.ErrorDescription || '';
-
-          if (errCode === 0) {
-            // Hardware captured fingerprint successfully!
-            const rawBmp = data.BitmapData || '';
-            const previewImage = rawBmp ? (rawBmp.startsWith('data:') ? rawBmp : `data:image/bmp;base64,${rawBmp}`) : undefined;
-            const templateData = data.IsoTemplate || data.AnsiTemplate || data.RawData || rawBmp;
-            const qualityScore = parseInt(data.Quality || '85', 10);
-
-            return {
-              success: true,
-              errorCode: 0,
-              errorDescription: 'Success',
-              qualityScore: qualityScore > 0 ? qualityScore : 85,
-              templateData: templateData || `MFS100_BIOMETRIC_${Date.now()}`,
-              previewImage,
-              rawBmp,
-              deviceInfo: 'Mantra MFS100 Hardware Capture',
-            };
-          } else {
-            // Scanner reported a specific hardware condition (e.g. timeout, finger removed too fast)
-            return {
-              success: false,
-              errorCode: errCode,
-              errorDescription: errDesc || `Mantra MFS100 hardware error (${errCode})`,
-              qualityScore: 0,
-              templateData: '',
-            };
-          }
         }
-      } catch (err: any) {
-        if (err.name === 'AbortError') {
-          lastError = 'Capture timeout: Finger was not placed on the scanner in time.';
-        } else {
-          lastError = err.message || 'MFS100 Client Service connection failed';
-        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `MFS100 HTTP error: ${response.status} ${response.statusText}`
+        );
       }
+
+      const contentType =
+        response.headers.get('content-type') || '';
+
+      if (!contentType.toLowerCase().includes('json')) {
+        throw new Error(
+          'MFS100 service returned a non-JSON response.'
+        );
+      }
+
+      return (await response.json()) as T;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * Checks whether the MFS100 client service responds.
+   * A successful /info response does not independently
+   * prove that a physical fingerprint capture will work.
+   */
+  async checkDevice(): Promise<DeviceStatusResult> {
+    try {
+      const data = await this.post<MFS100InfoResponse>(
+        'info',
+        {},
+        3000
+      );
+
+      const hasErrorCode = data.ErrorCode !== undefined;
+      const errorCode = this.getErrorCode(data.ErrorCode);
+
+      if (hasErrorCode && errorCode !== 0) {
+        return {
+          connected: true,
+          status: 'NOT_READY',
+          url: this.activeBaseUrl,
+          port: 8003,
+          message:
+            data.ErrorDescription ||
+            `MFS100 service responded with error code ${errorCode}.`,
+        };
+      }
+
+      const deviceInfo = data.DeviceInfo;
+
+      if (!deviceInfo) {
+        return {
+          connected: true,
+          status: 'NOT_READY',
+          url: this.activeBaseUrl,
+          port: 8003,
+          message:
+            'MFS100 service is responding, but device information was not returned. Physical scanner readiness is not confirmed.',
+        };
+      }
+
+      return {
+        connected: true,
+        status: 'READY',
+        url: this.activeBaseUrl,
+        port: 8003,
+        deviceModel: deviceInfo.Model || 'Mantra MFS100',
+        serialNumber: deviceInfo.SerialNo || '',
+        width: deviceInfo.Width,
+        height: deviceInfo.Height,
+        message: 'MFS100 service responded and returned device information.',
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown connection error';
+
+      const isCertificateError =
+        message.toLowerCase().includes('certificate') ||
+        message.toLowerCase().includes('ssl') ||
+        message.toLowerCase().includes('cert');
+
+      return {
+        connected: false,
+        status: isCertificateError ? 'CERT_ERROR' : 'NOT_RUNNING',
+        url: this.baseUrl,
+        port: 8003,
+        message: isCertificateError
+          ? `MFS100 HTTPS certificate error: ${message}`
+          : `MFS100 service is not responding at ${this.baseUrl}. ${message}`,
+      };
+    }
+  }
+
+  /**
+   * Requests a physical fingerprint capture.
+   * No generated template, fake image or assumed quality score.
+   */
+  async capture(
+    qualityThreshold: number = 60,
+    timeoutSeconds: number = 10
+  ): Promise<MFS100CaptureResult> {
+    if (
+      !Number.isFinite(qualityThreshold) ||
+      qualityThreshold < 1 ||
+      qualityThreshold > 100
+    ) {
+      return {
+        success: false,
+        errorCode: -1,
+        errorDescription: 'Quality threshold must be between 1 and 100.',
+        qualityScore: 0,
+        templateData: '',
+      };
     }
 
-    // STRICT: Return failure! Never auto-generate fake/dummy fingerprints!
-    return {
-      success: false,
-      errorCode: -1,
-      errorDescription: `${lastError}. Ensure Mantra MFS100 is connected and https://localhost:8003/mfs100 is running.`,
-      qualityScore: 0,
-      templateData: '',
-    };
+    if (
+      !Number.isFinite(timeoutSeconds) ||
+      timeoutSeconds < 1 ||
+      timeoutSeconds > 60
+    ) {
+      return {
+        success: false,
+        errorCode: -1,
+        errorDescription: 'Capture timeout must be between 1 and 60 seconds.',
+        qualityScore: 0,
+        templateData: '',
+      };
+    }
+
+    try {
+      const data = await this.post<MFS100CaptureResponse>(
+        'capture',
+        {
+          Quality: qualityThreshold,
+          TimeOut: timeoutSeconds,
+        },
+        (timeoutSeconds + 5) * 1000
+      );
+
+      const errorCode = this.getErrorCode(data.ErrorCode);
+      const errorDescription =
+        data.ErrorDescription || '';
+
+      if (errorCode !== 0) {
+        return {
+          success: false,
+          errorCode,
+          errorDescription:
+            errorDescription ||
+            `MFS100 capture failed with error code ${errorCode}.`,
+          qualityScore: 0,
+          templateData: '',
+        };
+      }
+
+      // Only accept actual biometric template fields.
+      // Never use BitmapData as a biometric template.
+      const templateData =
+        data.IsoTemplate ||
+        data.AnsiTemplate ||
+        data.RawData ||
+        '';
+
+      if (
+        typeof templateData !== 'string' ||
+        templateData.trim().length === 0
+      ) {
+        return {
+          success: false,
+          errorCode: -2,
+          errorDescription:
+            'Capture response did not contain a valid biometric template.',
+          qualityScore: 0,
+          templateData: '',
+        };
+      }
+
+      const parsedQuality = Number(data.Quality);
+
+      if (
+        !Number.isFinite(parsedQuality) ||
+        parsedQuality < 0 ||
+        parsedQuality > 100
+      ) {
+        return {
+          success: false,
+          errorCode: -3,
+          errorDescription:
+            'Capture response did not contain a valid quality score.',
+          qualityScore: 0,
+          templateData: '',
+        };
+      }
+
+      const rawBmp = data.BitmapData || '';
+
+      const previewImage = rawBmp
+        ? rawBmp.startsWith('data:')
+          ? rawBmp
+          : `data:image/bmp;base64,${rawBmp}`
+        : undefined;
+
+      return {
+        success: true,
+        errorCode: 0,
+        errorDescription: 'Fingerprint captured successfully.',
+        qualityScore: parsedQuality,
+        templateData,
+        previewImage,
+        rawBmp: rawBmp || undefined,
+        deviceInfo: 'Mantra MFS100',
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown capture error';
+
+      const isTimeout =
+        error instanceof Error && error.name === 'AbortError';
+
+      return {
+        success: false,
+        errorCode: -1,
+        errorDescription: isTimeout
+          ? 'Fingerprint capture timed out. Please try again.'
+          : `MFS100 capture failed: ${message}`,
+        qualityScore: 0,
+        templateData: '',
+      };
+    }
   }
 
   getActiveUrl(): string {

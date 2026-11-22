@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+
 import {
   Search,
   Plus,
@@ -9,127 +11,206 @@ import {
   Trash2,
   Edit,
   Eye,
-  CheckCircle2,
-  AlertCircle,
   AlertTriangle,
   RefreshCw,
   ArrowLeft,
 } from 'lucide-react';
+
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { studentService } from '../../services/student.service';
+
+import {
+  studentService,
+  type CreateStudentPayload,
+  type UpdateStudentPayload,
+  type StudentFingerprint,
+} from '../../services/student.service';
+
 import { batchService } from '../../services/batch.service';
 import { exportService } from '../../services/export.service';
 import { mfs100Service } from '../../services/mfs100.service';
+
 import { Student, Batch } from '../../types';
+
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { Pagination } from '../../components/common/Pagination';
 import { SlideOver } from '../../components/common/SlideOver';
 import { ConfirmationModal } from '../../components/common/ConfirmationModal';
 import { TableLoadingSkeleton } from '../../components/common/LoadingSkeleton';
 import { EmptyState } from '../../components/common/EmptyState';
-import { FingerprintDiagnosticDrawer } from '../../components/fingerprint/FingerprintDiagnosticDrawer';
-import { FingerprintScanCard, FingerprintData } from '../../components/fingerprint/FingerprintScanCard';
+
+import {
+  FingerprintScanCard,
+  FingerprintData,
+} from '../../components/fingerprint/FingerprintScanCard';
+
 import { BiometricFingerprintView } from '../../components/biometrics/BiometricFingerprintView';
 import { StudentDetailsView } from './StudentDetailsView';
 
+// --------------------------------------------------
+// FORM VALIDATION
+// --------------------------------------------------
+
 const studentSchema = z.object({
-  firstName: z.string().min(1, 'First Name is required'),
-  lastName: z.string().min(1, 'Last Name is required'),
-  mobileNumber: z.string().regex(/^[0-9]{10}$/, 'Mobile number must be exactly 10 digits'),
-  email: z.string().email('Invalid email address').optional().or(z.literal('')),
+  firstName: z.string().trim().min(1, 'First Name is required'),
+
+  lastName: z.string().trim().min(1, 'Last Name is required'),
+
+  mobileNumber: z
+    .string()
+    .regex(/^[0-9]{10}$/, 'Mobile number must be exactly 10 digits'),
+
+  email: z
+    .string()
+    .email('Invalid email address')
+    .optional()
+    .or(z.literal('')),
+
   batchId: z.string().min(1, 'Please select a batch'),
+
   status: z.enum(['ACTIVE', 'INACTIVE']),
 });
 
 type StudentFormData = z.infer<typeof studentSchema>;
 
-// SVG Fingerprint Ridges Component for High-Contrast Biometric Previews
-const FingerprintThumbnail = () => (
-  <svg viewBox="0 0 100 120" className="w-11 h-14 text-white" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
-    <path d="M 50 18 C 30 18 20 32 20 52 C 20 75 32 95 50 108" opacity="0.85" />
-    <path d="M 50 26 C 36 26 28 38 28 54 C 28 72 37 88 50 98" opacity="0.9" />
-    <path d="M 50 34 C 42 34 36 43 36 56 C 36 68 42 80 50 88" opacity="0.95" />
-    <path d="M 50 42 C 46 42 43 47 43 56 C 43 65 47 72 50 78" />
-    <path d="M 50 50 C 49 50 48 53 48 58 C 48 62 50 66 50 68" strokeWidth="3" />
-    <path d="M 50 18 C 70 18 80 32 80 52 C 80 75 68 95 50 108" opacity="0.85" />
-    <path d="M 50 26 C 64 26 72 38 72 54 C 72 72 63 88 50 98" opacity="0.9" />
-    <path d="M 50 34 C 58 34 64 43 64 56 C 64 68 58 80 50 88" opacity="0.95" />
-    <path d="M 50 42 C 54 42 57 47 57 56 C 57 65 53 72 50 78" />
-    <path d="M 50 10 C 22 10 12 28 12 52 C 12 82 28 104 50 116" opacity="0.75" />
-    <path d="M 50 10 C 78 10 88 28 88 52 C 88 82 72 104 50 116" opacity="0.75" />
-  </svg>
-);
+type FingerIndex =
+  | 'FINGER_1'
+  | 'FINGER_2'
+  | 'FINGER_3';
+
+// --------------------------------------------------
+// COMPONENT
+// --------------------------------------------------
 
 export const StudentsPage: React.FC = () => {
+  // --------------------------------------------------
+  // STATES
+  // --------------------------------------------------
+
   const [students, setStudents] = useState<Student[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [search, setSearch] = useState<string>('');
-  const [selectedBatch, setSelectedBatch] = useState<string>('');
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [totalPages, setTotalPages] = useState<number>(1);
-  const [totalResults, setTotalResults] = useState<number>(0);
 
-  // Live Scanned Fingerprints State for Registration Form
+  const [isLoading, setIsLoading] = useState(true);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+
+  const [search, setSearch] = useState('');
+  const [selectedBatch, setSelectedBatch] = useState('');
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalResults, setTotalResults] = useState(0);
+
+  // Only newly captured fingerprint data is held here.
   const [finger1, setFinger1] = useState<FingerprintData | null>(null);
   const [finger2, setFinger2] = useState<FingerprintData | null>(null);
   const [finger3, setFinger3] = useState<FingerprintData | null>(null);
 
-  // Modals & Drawers state
-  const [isAddDrawerOpen, setIsAddDrawerOpen] = useState<boolean>(false);
+  const [isAddDrawerOpen, setIsAddDrawerOpen] = useState(false);
+
   const [drawerMode, setDrawerMode] = useState<'DIAGNOSTIC' | 'FORM'>('FORM');
-  const [isReconnecting, setIsReconnecting] = useState<boolean>(false);
+
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
   const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
-  const [diagnosticOpen, setDiagnosticOpen] = useState<boolean>(false);
+
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   const navigate = useNavigate();
+
   const { id: routeStudentId } = useParams<{ id?: string }>();
 
-  // Sync route param with viewingStudent
-  useEffect(() => {
-    if (routeStudentId) {
-      studentService
-        .getStudentById(routeStudentId)
-        .then((res) => setViewingStudent(res))
-        .catch(() => {
-          toast.error('Student not found');
-          navigate('/students');
-        });
-    } else {
-      setViewingStudent(null);
-    }
-  }, [routeStudentId]);
+  // --------------------------------------------------
+  // REACT HOOK FORM
+  // --------------------------------------------------
 
   const {
     register,
     handleSubmit,
     reset,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<StudentFormData>({
     resolver: zodResolver(studentSchema),
+
     defaultValues: {
+      firstName: '',
+      lastName: '',
+      mobileNumber: '',
+      email: '',
+      batchId: '',
       status: 'ACTIVE',
     },
   });
 
-  const loadBatches = async () => {
-    try {
-      const res = await batchService.getBatches({ limit: 100 });
-      setBatches(res.data);
-    } catch (e) {
-      console.error('Failed to load batches');
-    }
-  };
+  // --------------------------------------------------
+  // CLEAR FINGERPRINT STATES
+  // --------------------------------------------------
 
-  const loadStudents = async () => {
+  const clearFingerprintStates = useCallback(() => {
+    setFinger1(null);
+    setFinger2(null);
+    setFinger3(null);
+  }, []);
+
+  // --------------------------------------------------
+  // ROUTE AND STUDENT DETAILS
+  // --------------------------------------------------
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!routeStudentId) {
+      setViewingStudent(null);
+      return;
+    }
+
+    studentService
+      .getStudentById(routeStudentId)
+      .then((res) => {
+        if (!cancelled) {
+          setViewingStudent(res);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error('Student not found');
+          navigate('/students');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [routeStudentId, navigate]);
+
+  // --------------------------------------------------
+  // LOAD BATCHES
+  // --------------------------------------------------
+
+  const loadBatches = useCallback(async () => {
+    try {
+      const res = await batchService.getBatches({
+        limit: 100,
+      });
+
+      setBatches(res.data || []);
+    } catch {
+      toast.error('Failed to load batches');
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBatches();
+  }, [loadBatches]);
+
+  // --------------------------------------------------
+  // LOAD STUDENTS
+  // --------------------------------------------------
+
+  const loadStudents = useCallback(async () => {
     setIsLoading(true);
+
     try {
       const res = await studentService.getStudents({
         page: currentPage,
@@ -137,23 +218,24 @@ export const StudentsPage: React.FC = () => {
         search,
         batchId: selectedBatch,
       });
-      setStudents(res.data);
-      setTotalPages(res.meta.totalPages);
-      setTotalResults(res.meta.total);
-    } catch (err: any) {
+
+      setStudents(res.data || []);
+      setTotalPages(res.meta?.totalPages || 1);
+      setTotalResults(res.meta?.total || 0);
+    } catch {
       toast.error('Failed to fetch students from server');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadBatches();
-  }, []);
+  }, [currentPage, search, selectedBatch]);
 
   useEffect(() => {
     loadStudents();
-  }, [currentPage, search, selectedBatch]);
+  }, [loadStudents]);
+
+  // --------------------------------------------------
+  // OPEN ADD STUDENT FORM
+  // --------------------------------------------------
 
   const handleOpenAdd = () => {
     reset({
@@ -164,174 +246,375 @@ export const StudentsPage: React.FC = () => {
       batchId: batches[0]?.id || '',
       status: 'ACTIVE',
     });
-    setFinger1(null);
-    setFinger2(null);
-    setFinger3(null);
+
+    clearFingerprintStates();
+
     setEditingStudent(null);
     setDrawerMode('FORM');
+    setActiveMenuId(null);
     setIsAddDrawerOpen(true);
   };
 
+  // --------------------------------------------------
+  // CLOSE FORM
+  // --------------------------------------------------
+
+  const handleCloseForm = () => {
+    setIsAddDrawerOpen(false);
+    setEditingStudent(null);
+    setDrawerMode('FORM');
+
+    clearFingerprintStates();
+
+    reset({
+      firstName: '',
+      lastName: '',
+      mobileNumber: '',
+      email: '',
+      batchId: '',
+      status: 'ACTIVE',
+    });
+  };
+
+  // --------------------------------------------------
+  // RECONNECT MFS100
+  // --------------------------------------------------
+
   const handleReconnect = async () => {
+    if (isReconnecting) return;
+
     setIsReconnecting(true);
+
+    toast.loading(
+      'Checking Mantra MFS100 service on port 8003...',
+      { id: 'recon-toast' }
+    );
+
     try {
-      toast.loading('Connecting to Mantra MFS100 at https://localhost:8003/mfs100...', { id: 'recon-toast' });
       const status = await mfs100Service.checkDevice();
-      if (status.connected) {
-        toast.success(`Mantra MFS100 Connected on ${status.url}! Device ready.`, { id: 'recon-toast' });
+
+      if (status.connected && status.status === 'READY') {
+        toast.success(
+          status.message,
+          { id: 'recon-toast' }
+        );
+
         setDrawerMode('FORM');
       } else {
-        toast.error('MFS100 Client Service not responding at https://localhost:8003/mfs100. Please start Mantra service.', {
-          id: 'recon-toast',
-          duration: 5000,
-        });
+        toast.error(
+          status.message || 'MFS100 scanner is not ready.',
+          {
+            id: 'recon-toast',
+            duration: 5000,
+          }
+        );
       }
-    } catch (e) {
-      toast.error('Failed to connect to https://localhost:8003/mfs100', { id: 'recon-toast' });
+    } catch {
+      toast.error(
+        'Unable to connect to Mantra MFS100 on port 8003.',
+        { id: 'recon-toast' }
+      );
     } finally {
       setIsReconnecting(false);
     }
   };
 
+  // --------------------------------------------------
+  // OPEN EDIT STUDENT
+  // --------------------------------------------------
+
   const handleOpenEdit = (student: Student) => {
     setEditingStudent(student);
+
+    reset({
+      firstName: student.firstName,
+      lastName: student.lastName,
+      mobileNumber: student.mobileNumber,
+      email: student.email || '',
+      batchId: student.batchId,
+      status: student.status,
+    });
+
+    /*
+     * Do not create fake biometric templates.
+     *
+     * Existing enrollment status is retained in the database.
+     * Only newly scanned fingers are submitted during update.
+     */
+
+    clearFingerprintStates();
+
     setDrawerMode('FORM');
-    setValue('firstName', student.firstName);
-    setValue('lastName', student.lastName);
-    setValue('mobileNumber', student.mobileNumber);
-    setValue('email', student.email || '');
-    setValue('batchId', student.batchId);
-    setValue('status', student.status);
-
-    // Prepopulate enrolled fingerprints
-    setFinger1(student.finger1?.isEnrolled ? {
-      fingerIndex: 'FINGER_1',
-      biometricData: 'ENROLLED',
-      qualityScore: student.finger1.qualityScore,
-      deviceModel: 'MFS100',
-      scannedAt: student.finger1.createdAt || '',
-    } : null);
-
-    setFinger2(student.finger2?.isEnrolled ? {
-      fingerIndex: 'FINGER_2',
-      biometricData: 'ENROLLED',
-      qualityScore: student.finger2.qualityScore,
-      deviceModel: 'MFS100',
-      scannedAt: student.finger2.createdAt || '',
-    } : null);
-
-    setFinger3(student.finger3?.isEnrolled ? {
-      fingerIndex: 'FINGER_3',
-      biometricData: 'ENROLLED',
-      qualityScore: student.finger3.qualityScore,
-      deviceModel: 'MFS100',
-      scannedAt: student.finger3.createdAt || '',
-    } : null);
-
     setIsAddDrawerOpen(true);
     setActiveMenuId(null);
   };
 
+  // --------------------------------------------------
+  // COLLECT NEWLY CAPTURED FINGERPRINTS
+  // --------------------------------------------------
+
+  const getFingerprintsToSave = (): StudentFingerprint[] => {
+    const fingerprints: FingerprintData[] = [
+      finger1,
+      finger2,
+      finger3,
+    ].filter(
+      (finger): finger is FingerprintData => finger !== null
+    );
+
+    const receivedIndexes = new Set<string>();
+
+    return fingerprints.map((finger) => {
+      if (
+        !finger.biometricData ||
+        typeof finger.biometricData !== 'string' ||
+        !finger.biometricData.trim()
+      ) {
+        throw new Error(
+          `${finger.fingerIndex}: Actual biometric template is missing.`
+        );
+      }
+
+      if (
+        !Number.isFinite(finger.qualityScore) ||
+        finger.qualityScore < 0 ||
+        finger.qualityScore > 100
+      ) {
+        throw new Error(
+          `${finger.fingerIndex}: Invalid fingerprint quality score.`
+        );
+      }
+
+      if (
+        !finger.deviceModel ||
+        !finger.deviceModel.trim()
+      ) {
+        throw new Error(
+          `${finger.fingerIndex}: Scanner device information is missing.`
+        );
+      }
+
+      if (receivedIndexes.has(finger.fingerIndex)) {
+        throw new Error(
+          `${finger.fingerIndex}: Duplicate fingerprint detected.`
+        );
+      }
+
+      receivedIndexes.add(finger.fingerIndex);
+
+      return {
+        fingerIndex: finger.fingerIndex,
+        biometricData: finger.biometricData,
+        qualityScore: finger.qualityScore,
+        deviceModel: finger.deviceModel,
+        scannedAt: finger.scannedAt,
+      };
+    });
+  };
+
+  // --------------------------------------------------
+  // SAVE OR UPDATE STUDENT
+  // --------------------------------------------------
+
   const handleFormSubmit = async (data: StudentFormData) => {
     try {
-      if (editingStudent) {
-        await studentService.updateStudent(editingStudent.id, data);
-        toast.success('Student details updated successfully!');
-      } else {
-        // Collect scanned fingerprints
-        const fingerprintsToSave = [finger1, finger2, finger3]
-          .filter(Boolean)
-          .map((f) => ({
-            fingerIndex: f!.fingerIndex,
-            biometricData: f!.biometricData,
-            qualityScore: f!.qualityScore,
-            deviceModel: f!.deviceModel,
-          }));
+      const fingerprintsToSave = getFingerprintsToSave();
 
-        await studentService.createStudent({
-          ...data,
-          fingerprints: fingerprintsToSave,
-        } as any);
+      if (editingStudent) {
+        const updatePayload: UpdateStudentPayload = {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          mobileNumber: data.mobileNumber,
+          email: data.email || '',
+          batchId: data.batchId,
+          status: data.status,
+        };
+
+        /*
+         * IMPORTANT:
+         * Only send fingerprints when new captures exist.
+         * Never send an empty array to clear existing enrollment.
+         */
+
+        if (fingerprintsToSave.length > 0) {
+          updatePayload.fingerprints = fingerprintsToSave;
+        }
+
+        await studentService.updateStudent(
+          editingStudent.id,
+          updatePayload
+        );
 
         toast.success(
           fingerprintsToSave.length > 0
-            ? `Student registered with ${fingerprintsToSave.length} biometric fingerprint(s)!`
+            ? 'Student details and new fingerprint captures updated successfully!'
+            : 'Student details updated successfully!'
+        );
+      } else {
+        const createPayload: CreateStudentPayload = {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          mobileNumber: data.mobileNumber,
+          email: data.email || '',
+          batchId: data.batchId,
+          status: data.status,
+        };
+
+        if (fingerprintsToSave.length > 0) {
+          createPayload.fingerprints = fingerprintsToSave;
+        }
+
+        await studentService.createStudent(createPayload);
+
+        toast.success(
+          fingerprintsToSave.length > 0
+            ? `Student registered with ${fingerprintsToSave.length} actual fingerprint capture(s)!`
             : 'Student registered successfully!'
         );
       }
-      setIsAddDrawerOpen(false);
-      loadStudents();
-    } catch (err: any) {
-      const msg = err.response?.data?.message || 'Operation failed';
-      toast.error(msg);
+
+      handleCloseForm();
+
+      await loadStudents();
+    } catch (err: unknown) {
+      const error = err as {
+        response?: {
+          data?: {
+            message?: string;
+          };
+        };
+      };
+
+      toast.error(
+        error.response?.data?.message ||
+        (err instanceof Error
+          ? err.message
+          : 'Student operation failed')
+      );
     }
   };
+
+  // --------------------------------------------------
+  // DELETE STUDENT
+  // --------------------------------------------------
 
   const handleDeleteConfirm = async () => {
     if (!deletingStudent) return;
+
     try {
       await studentService.deleteStudent(deletingStudent.id);
-      toast.success(`Student ${deletingStudent.firstName} deleted successfully`);
+
+      toast.success(
+        `Student ${deletingStudent.firstName} deleted successfully`
+      );
+
       setDeletingStudent(null);
-      loadStudents();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to delete student');
+
+      await loadStudents();
+    } catch (err: unknown) {
+      const error = err as {
+        response?: {
+          data?: {
+            message?: string;
+          };
+        };
+      };
+
+      toast.error(
+        error.response?.data?.message ||
+        'Failed to delete student'
+      );
     }
   };
+
+  // --------------------------------------------------
+  // EXPORT STUDENTS
+  // --------------------------------------------------
 
   const handleExport = async () => {
     try {
-      toast.loading('Generating student list export...', { id: 'export-toast' });
-      await exportService.exportStudents('xlsx', selectedBatch);
-      toast.success('Export downloaded successfully!', { id: 'export-toast' });
-    } catch (e) {
-      toast.error('Failed to export student records', { id: 'export-toast' });
+      toast.loading(
+        'Generating student list export...',
+        { id: 'export-toast' }
+      );
+
+      await exportService.exportStudents(
+        'xlsx',
+        selectedBatch
+      );
+
+      toast.success(
+        'Export downloaded successfully!',
+        { id: 'export-toast' }
+      );
+    } catch {
+      toast.error(
+        'Failed to export student records',
+        { id: 'export-toast' }
+      );
     }
   };
 
-  // If viewing a student, display the exact Student Details View from the video
+  // --------------------------------------------------
+  // STUDENT DETAILS VIEW
+  // --------------------------------------------------
+
   if (viewingStudent) {
     return (
       <StudentDetailsView
         student={viewingStudent}
         onBack={() => {
           setViewingStudent(null);
-          if (routeStudentId) {
-            navigate('/students');
-          }
+          navigate('/students');
         }}
       />
     );
   }
 
+  // --------------------------------------------------
+  // MAIN PAGE
+  // --------------------------------------------------
+
   return (
     <div className="space-y-6">
-      {/* Table Container Card matching Screenshot 3 */}
+
+      {/* STUDENTS TABLE */}
+
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-        {/* Header Controls */}
+
+        {/* HEADER */}
+
         <div className="p-6 pb-5 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-slate-100">
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Students List</h2>
+
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+            Students List
+          </h2>
 
           <div className="flex flex-wrap items-center gap-3.5 w-full lg:w-auto">
-            {/* Select Batch Dropdown */}
+
+            {/* BATCH FILTER */}
+
             <select
               value={selectedBatch}
               onChange={(e) => {
                 setSelectedBatch(e.target.value);
                 setCurrentPage(1);
               }}
-              className="px-4 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all min-w-[170px]"
+              className="px-4 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 bg-white min-w-[170px]"
             >
               <option value="">Select Batch (All)</option>
-              {batches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
+
+              {batches.map((batch) => (
+                <option key={batch.id} value={batch.id}>
+                  {batch.name}
                 </option>
               ))}
             </select>
 
-            {/* Search Input matching Screenshot 3 */}
+            {/* SEARCH */}
+
             <div className="relative flex-1 sm:flex-initial sm:min-w-[240px]">
+
               <input
                 type="text"
                 value={search}
@@ -340,32 +623,40 @@ export const StudentsPage: React.FC = () => {
                   setCurrentPage(1);
                 }}
                 placeholder="Search Student..."
-                className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-200 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all"
+                className="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-200 text-sm"
               />
-              <Search className="w-4.5 h-4.5 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+
+              <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+
             </div>
 
-            {/* DOWNLOAD Button matching Screenshot 3 */}
+            {/* EXPORT */}
+
             <button
+              type="button"
               onClick={handleExport}
-              className="px-5 py-3 rounded-xl text-sm font-bold uppercase tracking-wider text-white bg-[#5b52f9] hover:bg-[#4f46e5] flex items-center space-x-2 shadow-sm transition-all"
+              className="px-5 py-3 rounded-xl text-sm font-bold text-white bg-[#5b52f9] flex items-center gap-2"
             >
               <Download className="w-4 h-4" />
-              <span>DOWNLOAD</span>
+              DOWNLOAD
             </button>
 
-            {/* + ADD Button matching Screenshot 3 */}
+            {/* ADD STUDENT */}
+
             <button
+              type="button"
               onClick={handleOpenAdd}
-              className="px-5 py-3 rounded-xl text-sm font-bold uppercase tracking-wider text-white bg-brand-primary hover:bg-brand-primary-hover flex items-center space-x-2 shadow-sm transition-all"
+              className="px-5 py-3 rounded-xl text-sm font-bold text-white bg-brand-primary flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
-              <span>ADD</span>
+              ADD
             </button>
+
           </div>
         </div>
 
-        {/* Table Content matching Screenshot 3 */}
+        {/* TABLE CONTENT */}
+
         {isLoading ? (
           <TableLoadingSkeleton rows={6} cols={7} />
         ) : students.length === 0 ? (
@@ -377,142 +668,204 @@ export const StudentsPage: React.FC = () => {
           />
         ) : (
           <div className="overflow-x-auto">
+
             <table className="w-full text-left text-sm">
+
               <thead>
-                <tr className="border-b border-slate-100 text-slate-500 uppercase tracking-wider text-xs bg-slate-50/50">
-                  <th className="py-4 px-6 font-bold w-16">S.NO</th>
-                  <th className="py-4 px-6 font-bold">NAME</th>
-                  <th className="py-4 px-6 font-bold">BATCH</th>
-                  <th className="py-4 px-6 font-bold">STATUS</th>
-                  <th className="py-4 px-6 font-bold text-center">FINGER 1</th>
-                  <th className="py-4 px-6 font-bold text-center">FINGER 2</th>
-                  <th className="py-4 px-6 font-bold text-center">FINGER 3</th>
-                  <th className="py-4 px-6 font-bold text-right">ACTION</th>
+                <tr className="border-b border-slate-100 text-slate-500 uppercase text-xs bg-slate-50/50">
+
+                  <th className="py-4 px-6">S.NO</th>
+                  <th className="py-4 px-6">NAME</th>
+                  <th className="py-4 px-6">BATCH</th>
+                  <th className="py-4 px-6">STATUS</th>
+                  <th className="py-4 px-6 text-center">FINGER 1</th>
+                  <th className="py-4 px-6 text-center">FINGER 2</th>
+                  <th className="py-4 px-6 text-center">FINGER 3</th>
+                  <th className="py-4 px-6 text-right">ACTION</th>
+
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-slate-100">
+
                 {students.map((student, idx) => (
-                  <tr key={student.id} className="hover:bg-slate-50/60 transition-colors">
-                    {/* S.NO */}
-                    <td className="py-4 px-6 text-slate-500 font-semibold text-sm">
+
+                  <tr
+                    key={student.id}
+                    className="hover:bg-slate-50/60"
+                  >
+
+                    {/* SERIAL NUMBER */}
+
+                    <td className="py-4 px-6 text-slate-500 font-semibold">
                       {(currentPage - 1) * 10 + idx + 1}
                     </td>
 
-                    {/* NAME with Mobile number underneath */}
+                    {/* STUDENT NAME */}
+
                     <td className="py-4 px-6">
-                      <div className="font-bold text-slate-900 text-sm">
+
+                      <div className="font-bold text-slate-900">
                         {student.firstName} {student.lastName}
                       </div>
+
                       <div className="text-xs text-slate-500 font-mono mt-0.5">
                         {student.mobileNumber}
                       </div>
+
                     </td>
 
                     {/* BATCH */}
-                    <td className="py-4 px-6 font-mono text-slate-800 font-semibold text-sm">
+
+                    <td className="py-4 px-6 font-mono text-slate-800">
                       {student.batchName}
                     </td>
 
                     {/* STATUS */}
+
                     <td className="py-4 px-6">
                       <StatusBadge status={student.status} />
                     </td>
 
-                    {/* FINGER 1 matching exact video & screenshot 3 */}
+                    {/* FINGER 1 */}
+
                     <td className="py-3 px-4 text-center">
+
                       <BiometricFingerprintView
                         fingerIndex="FINGER_1"
-                        isEnrolled={true}
-                        qualityScore={student.finger1?.qualityScore || 88}
+                        isEnrolled={!!student.finger1?.isEnrolled}
+                        qualityScore={student.finger1?.qualityScore ?? 0}
                         showQualityBadge={false}
                         size="sm"
                         onClick={() => navigate(`/students/${student.id}`)}
                       />
+
                     </td>
 
-                    {/* FINGER 2 matching exact video & screenshot 3 */}
+                    {/* FINGER 2 */}
+
                     <td className="py-3 px-4 text-center">
+
                       <BiometricFingerprintView
                         fingerIndex="FINGER_2"
-                        isEnrolled={true}
-                        qualityScore={student.finger2?.qualityScore || 88}
+                        isEnrolled={!!student.finger2?.isEnrolled}
+                        qualityScore={student.finger2?.qualityScore ?? 0}
                         showQualityBadge={false}
                         size="sm"
                         onClick={() => navigate(`/students/${student.id}`)}
                       />
+
                     </td>
 
-                    {/* FINGER 3 matching exact video & screenshot 3 */}
+                    {/* FINGER 3 */}
+
                     <td className="py-3 px-4 text-center">
+
                       <BiometricFingerprintView
                         fingerIndex="FINGER_3"
-                        isEnrolled={true}
-                        qualityScore={student.finger3?.qualityScore || 88}
+                        isEnrolled={!!student.finger3?.isEnrolled}
+                        qualityScore={student.finger3?.qualityScore ?? 0}
                         showQualityBadge={false}
                         size="sm"
                         onClick={() => navigate(`/students/${student.id}`)}
                       />
+
                     </td>
 
-                    {/* ACTION Menu matching Screenshot 3 */}
+                    {/* ACTION MENU */}
+
                     <td className="py-4 px-6 text-right relative">
+
                       <button
-                        onClick={() => setActiveMenuId(activeMenuId === student.id ? null : student.id)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                        type="button"
+                        onClick={() =>
+                          setActiveMenuId(
+                            activeMenuId === student.id
+                              ? null
+                              : student.id
+                          )
+                        }
+                        className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"
                       >
                         <MoreVertical className="w-4 h-4" />
                       </button>
 
                       {activeMenuId === student.id && (
-                        <div className="absolute right-6 mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-20 text-left animate-fadeIn">
+
+                        <div className="absolute right-6 mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-20 text-left">
+
+                          {/* VIEW */}
+
                           <button
+                            type="button"
                             onClick={() => {
                               setActiveMenuId(null);
                               navigate(`/students/${student.id}`);
                             }}
-                            className="w-full px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center space-x-2 transition-colors"
+                            className="w-full px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
                           >
-                            <Eye className="w-3.5 h-3.5 text-slate-400" />
-                            <span>View</span>
+                            <Eye className="w-3.5 h-3.5" />
+                            View
                           </button>
+
+                          {/* EDIT */}
+
                           <button
+                            type="button"
                             onClick={() => handleOpenEdit(student)}
-                            className="w-full px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center space-x-2 transition-colors"
+                            className="w-full px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
                           >
-                            <Edit className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Edit</span>
+                            <Edit className="w-3.5 h-3.5" />
+                            Edit
                           </button>
+
+                          {/* DELETE */}
+
                           <button
+                            type="button"
                             onClick={() => {
                               setDeletingStudent(student);
                               setActiveMenuId(null);
                             }}
-                            className="w-full px-4 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center space-x-2 border-t border-slate-100 transition-colors"
+                            className="w-full px-4 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 border-t border-slate-100"
                           >
-                            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                            <span>Delete</span>
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Delete
                           </button>
+
                         </div>
+
                       )}
+
                     </td>
+
                   </tr>
+
                 ))}
+
               </tbody>
+
             </table>
+
           </div>
         )}
 
-        {/* Pagination matching Screenshot */}
+        {/* PAGINATION */}
+
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
           totalResults={totalResults}
           pageSize={10}
-          onPageChange={(page) => setCurrentPage(page)}
+          onPageChange={setCurrentPage}
         />
+
       </div>
 
-      {/* SlideOver Registration Form matching Screen Recording & Screenshot 3/4 */}
+      {/* --------------------------------------------------
+          STUDENT REGISTRATION / EDIT DRAWER
+      -------------------------------------------------- */}
+
       <SlideOver
         isOpen={isAddDrawerOpen}
         title={
@@ -520,281 +873,323 @@ export const StudentsPage: React.FC = () => {
             ? 'Edit Student Details'
             : 'Student Registration Form'
         }
-        onClose={() => setIsAddDrawerOpen(false)}
+        onClose={handleCloseForm}
         width="max-w-xl"
       >
+
+        {/* DIAGNOSTIC MODE */}
+
         {drawerMode === 'DIAGNOSTIC' && !editingStudent ? (
-          /* EXACT SCREEN RECORDING VIEW: Fingerprint Scanner Facing Issue */
+
           <div className="space-y-6">
+
             <div className="flex flex-col items-center text-center pt-2 pb-2">
-              {/* Red Warning Triangle Icon matching screen recording */}
-              <div className="w-16 h-16 rounded-2xl bg-white border border-rose-200 shadow-sm flex items-center justify-center text-rose-500 mb-4">
-                <AlertTriangle className="w-9 h-9 stroke-[1.8]" />
+
+              <div className="w-16 h-16 rounded-2xl bg-white border border-rose-200 flex items-center justify-center text-rose-500 mb-4">
+                <AlertTriangle className="w-9 h-9" />
               </div>
 
-              <h3 className="text-xl font-bold text-slate-900 tracking-tight">
+              <h3 className="text-xl font-bold text-slate-900">
                 Fingerprint Scanner Facing Issue
               </h3>
+
               <p className="text-sm font-semibold text-slate-800 mt-1">
-                Myntra MFS100 Driver installed but Not Working
+                Mantra MFS100 Client Service is not responding
               </p>
-              <p className="text-xs text-slate-400 mt-0.5">Follow these instructions</p>
+
+              <p className="text-xs text-slate-400 mt-1">
+                Follow these troubleshooting instructions.
+              </p>
+
             </div>
 
-            {/* Instruction Steps Card 1 matching video */}
-            <div className="border border-slate-200/90 rounded-xl p-5 bg-white shadow-sm space-y-4 text-left">
+            <div className="border border-slate-200 rounded-xl p-5 bg-white space-y-4">
+
               <div>
                 <h4 className="text-xs font-bold text-slate-900">
-                  1. Open the Services Management Console:
+                  1. Open Services Management
                 </h4>
-                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                  Press <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-300 rounded text-[11px] font-mono text-slate-700">Windows + R</kbd> to open the Run dialog box.
-                  <br />
-                  Type <code className="text-indigo-600 font-semibold">services.msc</code> and press Enter.
-                </p>
-              </div>
 
-              <div className="border-t border-slate-100 pt-3">
-                <h4 className="text-xs font-bold text-slate-900">
-                  2. Locate the MFS100 Client Service:
-                </h4>
-                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                  In the Services window, scroll down to find <span className="font-semibold text-slate-800">MFS100 Client Service</span> (or TermService in older versions of Windows).
-                </p>
-              </div>
-
-              <div className="border-t border-slate-100 pt-3">
-                <h4 className="text-xs font-bold text-slate-900">
-                  3. Restart the Service:
-                </h4>
-                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                  Right click on <span className="font-semibold text-slate-800">MFS100 Client Service</span> and select <span className="font-semibold text-slate-800">Start / Restart</span>.
-                </p>
-              </div>
-
-              <div className="border-t border-slate-100 pt-3">
-                <h4 className="text-xs font-bold text-slate-900">Video Tutorial</h4>
                 <p className="text-xs text-slate-600 mt-1">
-                  For a detailed video guide, watch the tutorial{' '}
-                  <a
-                    href="https://www.mantratec.com/download"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-600 underline font-medium hover:text-blue-700"
-                  >
-                    here
-                  </a>
-                  .
+                  Press Windows + R, type services.msc and press Enter.
                 </p>
               </div>
-            </div>
 
-            {/* Instruction Steps Card 2 matching video */}
-            <div className="border border-slate-200/90 rounded-xl p-5 bg-white shadow-sm text-left space-y-3">
-              <div>
+              <div className="border-t pt-3">
                 <h4 className="text-xs font-bold text-slate-900">
-                  Installation Guide for MFS100 Fingerprint Driver
+                  2. Locate MFS100 Client Service
                 </h4>
-                <p className="text-xs text-slate-400 mt-0.5">Follow these instructions</p>
+
+                <p className="text-xs text-slate-600 mt-1">
+                  Find the Mantra MFS100 Client Service in the Services window.
+                </p>
               </div>
 
-              <div className="space-y-3 pt-1">
-                <div>
-                  <h5 className="text-xs font-semibold text-slate-900">1. Download the Driver:</h5>
-                  <p className="text-xs text-slate-600 mt-0.5">
-                    Visit the official website to{' '}
-                    <a
-                      href="https://www.mantratec.com/download"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-600 underline font-medium hover:text-blue-700"
-                    >
-                      Download
-                    </a>{' '}
-                    the latest MFS100 fingerprint driver.
-                  </p>
-                </div>
+              <div className="border-t pt-3">
+                <h4 className="text-xs font-bold text-slate-900">
+                  3. Check Service Status
+                </h4>
 
-                <div>
-                  <h5 className="text-xs font-semibold text-slate-900">2. Run the Installer:</h5>
-                  <p className="text-xs text-slate-600 mt-0.5">
-                    Double-click the downloaded setup file to launch the installer.
-                  </p>
-                </div>
-
-                <div>
-                  <h5 className="text-xs font-semibold text-slate-900">3. Follow On-Screen Instructions:</h5>
-                  <p className="text-xs text-slate-600 mt-0.5">
-                    Proceed through the installation wizard by clicking Next and agreeing to the terms.
-                  </p>
-                </div>
-
-                <div>
-                  <h5 className="text-xs font-semibold text-slate-900">4. Complete the Installation:</h5>
-                  <p className="text-xs text-slate-600 mt-0.5">
-                    Once the installation is finished, click Finish and restart your system if prompted.
-                  </p>
-                </div>
-
-                <div>
-                  <h5 className="text-xs font-semibold text-slate-900">5. Verify the Installation:</h5>
-                  <p className="text-xs text-slate-600 mt-0.5">
-                    Reconnect your MFS100 device and check if it's working properly.
-                  </p>
-                </div>
+                <p className="text-xs text-slate-600 mt-1">
+                  If the service is stopped, start it. If it is already running, check the device connection and service logs.
+                </p>
               </div>
+
+              <div className="border-t pt-3">
+                <h4 className="text-xs font-bold text-slate-900">
+                  4. Official Mantra Support
+                </h4>
+
+                <a
+                  href="https://www.mantratec.com/download"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-blue-600 underline"
+                >
+                  Mantra Downloads
+                </a>
+              </div>
+
             </div>
 
-            {/* Bottom Actions matching video */}
-            <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+            <div className="pt-4 border-t flex items-center justify-between">
+
               <button
                 type="button"
                 onClick={() => setDrawerMode('FORM')}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-brand-primary bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-brand-primary bg-indigo-50"
               >
-                PROCEED TO REGISTRATION →
+                PROCEED TO REGISTRATION
               </button>
 
               <button
                 type="button"
                 onClick={handleReconnect}
                 disabled={isReconnecting}
-                className="px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-brand-primary hover:bg-brand-primary-hover shadow-sm transition-all flex items-center space-x-2 disabled:opacity-50"
+                className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-brand-primary flex items-center gap-2 disabled:opacity-50"
               >
-                {isReconnecting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                <span>{isReconnecting ? 'RECONNECTING...' : 'RECONNECT'}</span>
+                {isReconnecting && (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                )}
+
+                {isReconnecting
+                  ? 'RECONNECTING...'
+                  : 'RECONNECT'}
               </button>
+
             </div>
+
           </div>
+
         ) : (
-          /* REGISTRATION FORM VIEW WITH LIVE BIOMETRIC FINGERPRINT SCANNING */
-          <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-5">
-            {/* Top diagnostic navigation toggle */}
+
+          // --------------------------------------------------
+          // REGISTRATION FORM
+          // --------------------------------------------------
+
+          <form
+            onSubmit={handleSubmit(handleFormSubmit)}
+            className="space-y-5"
+          >
+
+            {/* TROUBLESHOOTING NAVIGATION */}
+
             {!editingStudent && (
+
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+
                 <button
                   type="button"
                   onClick={() => setDrawerMode('DIAGNOSTIC')}
-                  className="inline-flex items-center text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+                  className="inline-flex items-center text-xs font-semibold text-slate-500"
                 >
                   <ArrowLeft className="w-3.5 h-3.5 mr-1" />
-                  <span>Scanner Troubleshooting Guide</span>
+                  Scanner Troubleshooting Guide
                 </button>
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse" />
-                  MFS100 Service Active
+
+                <span className="text-[11px] font-semibold text-slate-500">
+                  MFS100 | Port 8003
                 </span>
+
               </div>
+
             )}
 
-            {/* Personal Information */}
+            {/* PERSONAL INFORMATION */}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">First Name *</label>
+
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  First Name *
+                </label>
+
                 <input
                   type="text"
                   {...register('firstName')}
                   placeholder="Enter First Name"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm"
                 />
-                {errors.firstName && <p className="text-xs text-red-500 mt-1">{errors.firstName.message}</p>}
+
+                {errors.firstName && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.firstName.message}
+                  </p>
+                )}
+
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Last Name *</label>
+
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Last Name *
+                </label>
+
                 <input
                   type="text"
                   {...register('lastName')}
                   placeholder="Enter Last Name"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm"
                 />
-                {errors.lastName && <p className="text-xs text-red-500 mt-1">{errors.lastName.message}</p>}
+
+                {errors.lastName && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.lastName.message}
+                  </p>
+                )}
+
               </div>
+
             </div>
 
+            {/* CONTACT INFORMATION */}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Mobile Number *</label>
+
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Mobile Number *
+                </label>
+
                 <input
                   type="text"
+                  inputMode="numeric"
+                  maxLength={10}
                   {...register('mobileNumber')}
                   placeholder="10-digit mobile number"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary font-mono"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm font-mono"
                 />
-                {errors.mobileNumber && <p className="text-xs text-red-500 mt-1">{errors.mobileNumber.message}</p>}
+
+                {errors.mobileNumber && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.mobileNumber.message}
+                  </p>
+                )}
+
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Email Address</label>
+
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Email Address
+                </label>
+
                 <input
                   type="email"
                   {...register('email')}
                   placeholder="student@example.com (optional)"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm"
                 />
-                {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>}
+
+                {errors.email && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.email.message}
+                  </p>
+                )}
+
               </div>
+
             </div>
 
+            {/* BATCH AND STATUS */}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Select Batch *</label>
+
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Select Batch *
+                </label>
+
                 <select
                   {...register('batchId')}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary bg-white"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm bg-white"
                 >
                   <option value="">-- Choose Batch --</option>
-                  {batches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} ({b.status})
+
+                  {batches.map((batch) => (
+                    <option key={batch.id} value={batch.id}>
+                      {batch.name} ({batch.status})
                     </option>
                   ))}
+
                 </select>
-                {errors.batchId && <p className="text-xs text-red-500 mt-1">{errors.batchId.message}</p>}
+
+                {errors.batchId && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.batchId.message}
+                  </p>
+                )}
+
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Student Status</label>
+
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Student Status
+                </label>
+
                 <select
                   {...register('status')}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary bg-white"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm bg-white"
                 >
                   <option value="ACTIVE">Active</option>
                   <option value="INACTIVE">Inactive</option>
                 </select>
+
               </div>
+
             </div>
 
-            {/* Biometric Fingerprint Capture Section inside Registration Form */}
+            {/* BIOMETRIC REGISTRATION */}
+
             <div className="pt-5 border-t border-slate-100">
+
               <div className="flex items-center justify-between mb-4">
+
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900 tracking-tight flex items-center space-x-2">
-                    <FingerprintIcon className="w-4.5 h-4.5 text-brand-primary" />
-                    <span>Biometric Fingerprint Registration (MFS100)</span>
+
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <FingerprintIcon className="w-4 h-4 text-brand-primary" />
+                    Biometric Fingerprint Registration
                   </h4>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Touch scanner to capture and preview Finger 1, Finger 2, and Finger 3.
+
+                  <p className="text-xs text-slate-500 mt-1">
+                    Capture fingerprints using Mantra MFS100.
                   </p>
+
                 </div>
 
-                <div className="flex items-center space-x-2">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mr-1.5 animate-pulse"></span>
-                    Mantra MFS100: port 8003
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setDrawerMode('DIAGNOSTIC')}
-                    className="text-xs font-semibold text-brand-primary hover:underline ml-1"
-                  >
-                    Scanner Setup
-                  </button>
-                </div>
+                <span className="text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-1 rounded">
+                  Port 8003
+                </span>
+
               </div>
 
-              {/* 3 Fingerprint Scan Cards */}
-              <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50/80 border border-slate-200/60 justify-items-center">
+              <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-200 justify-items-center">
+
                 <FingerprintScanCard
                   label="Finger 1"
                   fingerIndex="FINGER_1"
@@ -815,30 +1210,59 @@ export const StudentsPage: React.FC = () => {
                   value={finger3}
                   onChange={setFinger3}
                 />
+
               </div>
+
+              <p className="text-[11px] text-slate-500 mt-3">
+                Only successfully captured biometric templates will be submitted.
+                Existing enrollment is preserved unless you successfully capture
+                and submit a new fingerprint for the same finger.
+              </p>
+
+              {editingStudent && (
+                <p className="text-[11px] text-amber-700 mt-2">
+                  Existing enrolled fingerprints are not automatically loaded
+                  into these cards. Re-scan only the finger you want to replace.
+                </p>
+              )}
+
             </div>
 
-            <div className="pt-6 flex items-center justify-end space-x-3.5 border-t border-slate-100">
+            {/* FORM ACTIONS */}
+
+            <div className="pt-6 flex items-center justify-end gap-3.5 border-t border-slate-100">
+
               <button
                 type="button"
-                onClick={() => setIsAddDrawerOpen(false)}
-                className="px-6 py-3 rounded-xl text-sm font-semibold uppercase tracking-wider text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                onClick={handleCloseForm}
+                disabled={isSubmitting}
+                className="px-6 py-3 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 disabled:opacity-50"
               >
                 CANCEL
               </button>
+
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-7 py-3 rounded-xl text-sm font-bold uppercase tracking-wider text-white bg-brand-primary hover:bg-brand-primary-hover shadow-sm disabled:opacity-50 transition-all"
+                className="px-7 py-3 rounded-xl text-sm font-bold text-white bg-brand-primary disabled:opacity-50"
               >
-                {isSubmitting ? 'SAVING...' : editingStudent ? 'UPDATE STUDENT' : 'SUBMIT & REGISTER'}
+                {isSubmitting
+                  ? 'SAVING...'
+                  : editingStudent
+                    ? 'UPDATE STUDENT'
+                    : 'SUBMIT & REGISTER'}
               </button>
+
             </div>
+
           </form>
+
         )}
+
       </SlideOver>
 
-      {/* Delete Confirmation Modal */}
+      {/* DELETE CONFIRMATION */}
+
       <ConfirmationModal
         isOpen={!!deletingStudent}
         title="Confirm Student Deletion"
@@ -849,11 +1273,6 @@ export const StudentsPage: React.FC = () => {
         onCancel={() => setDeletingStudent(null)}
       />
 
-      {/* MFS100 Diagnostic Drawer matching Screenshot 4 */}
-      <FingerprintDiagnosticDrawer
-        isOpen={diagnosticOpen}
-        onClose={() => setDiagnosticOpen(false)}
-      />
     </div>
   );
 };
