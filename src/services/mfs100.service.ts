@@ -62,12 +62,61 @@ export class MFS100Service {
     return -1;
   }
 
+  /**
+   * GET request for device information.
+   * Confirm this method against the installed Mantra SDK.
+   */
+  private async get<T>(
+    endpoint: string,
+    timeoutMs: number
+  ): Promise<T> {
+    const controller = new AbortController();
+
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      timeoutMs
+    );
+
+    try {
+      const response = await fetch(
+        `${this.activeBaseUrl}/${endpoint}`,
+        {
+          method: 'GET',
+          signal: controller.signal,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `MFS100 HTTP error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const contentType =
+        response.headers.get('content-type') || '';
+
+      if (!contentType.toLowerCase().includes('json')) {
+        throw new Error(
+          'MFS100 service returned a non-JSON response.'
+        );
+      }
+
+      return (await response.json()) as T;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * POST request for operations that require a JSON payload.
+   */
   private async post<T>(
     endpoint: string,
     payload: Record<string, unknown>,
     timeoutMs: number
   ): Promise<T> {
     const controller = new AbortController();
+
     const timeoutId = setTimeout(
       () => controller.abort(),
       timeoutMs
@@ -108,22 +157,18 @@ export class MFS100Service {
   }
 
   /**
-   * Checks whether the MFS100 client service responds.
-   * A successful /info response does not independently
-   * prove that a physical fingerprint capture will work.
+   * Checks MFS100 service and device information.
    */
   async checkDevice(): Promise<DeviceStatusResult> {
     try {
-      const data = await this.post<MFS100InfoResponse>(
+      const data = await this.get<MFS100InfoResponse>(
         'info',
-        {},
-        3000
+        5000
       );
 
-      const hasErrorCode = data.ErrorCode !== undefined;
       const errorCode = this.getErrorCode(data.ErrorCode);
 
-      if (hasErrorCode && errorCode !== 0) {
+      if (data.ErrorCode !== undefined && errorCode !== 0) {
         return {
           connected: true,
           status: 'NOT_READY',
@@ -131,7 +176,7 @@ export class MFS100Service {
           port: 8003,
           message:
             data.ErrorDescription ||
-            `MFS100 service responded with error code ${errorCode}.`,
+            `MFS100 returned error code ${errorCode}.`,
         };
       }
 
@@ -144,7 +189,7 @@ export class MFS100Service {
           url: this.activeBaseUrl,
           port: 8003,
           message:
-            'MFS100 service is responding, but device information was not returned. Physical scanner readiness is not confirmed.',
+            'Service responded, but device information was not returned.',
         };
       }
 
@@ -157,32 +202,44 @@ export class MFS100Service {
         serialNumber: deviceInfo.SerialNo || '',
         width: deviceInfo.Width,
         height: deviceInfo.Height,
-        message: 'MFS100 service responded and returned device information.',
+        message:
+          'MFS100 service responded and returned device information. Capture is not yet verified.',
       };
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Unknown connection error';
+        error instanceof Error
+          ? error.message
+          : 'Unknown connection error';
+
+      const isTimeout =
+        error instanceof Error &&
+        error.name === 'AbortError';
 
       const isCertificateError =
-        message.toLowerCase().includes('certificate') ||
-        message.toLowerCase().includes('ssl') ||
-        message.toLowerCase().includes('cert');
+        /certificate|ssl|cert/i.test(message);
 
       return {
         connected: false,
-        status: isCertificateError ? 'CERT_ERROR' : 'NOT_RUNNING',
+        status: isCertificateError
+          ? 'CERT_ERROR'
+          : 'NOT_RUNNING',
         url: this.baseUrl,
         port: 8003,
-        message: isCertificateError
-          ? `MFS100 HTTPS certificate error: ${message}`
-          : `MFS100 service is not responding at ${this.baseUrl}. ${message}`,
+        message: isTimeout
+          ? 'MFS100 service connection timed out.'
+          : isCertificateError
+            ? `MFS100 HTTPS certificate error: ${message}`
+            : `MFS100 service is not responding at ${this.baseUrl}. ${message}`,
       };
     }
   }
 
   /**
-   * Requests a physical fingerprint capture.
-   * No generated template, fake image or assumed quality score.
+   * Fingerprint capture.
+   *
+   * IMPORTANT:
+   * Verify endpoint, method, payload and response fields
+   * against your installed Mantra SDK before production use.
    */
   async capture(
     qualityThreshold: number = 60,
@@ -196,7 +253,8 @@ export class MFS100Service {
       return {
         success: false,
         errorCode: -1,
-        errorDescription: 'Quality threshold must be between 1 and 100.',
+        errorDescription:
+          'Quality threshold must be between 1 and 100.',
         qualityScore: 0,
         templateData: '',
       };
@@ -210,66 +268,60 @@ export class MFS100Service {
       return {
         success: false,
         errorCode: -1,
-        errorDescription: 'Capture timeout must be between 1 and 60 seconds.',
+        errorDescription:
+          'Capture timeout must be between 1 and 60 seconds.',
         qualityScore: 0,
         templateData: '',
       };
     }
 
     try {
-      const data = await this.post<MFS100CaptureResponse>(
-        'capture',
-        {
-          Quality: qualityThreshold,
-          TimeOut: timeoutSeconds,
-        },
-        (timeoutSeconds + 5) * 1000
-      );
+      const data =
+        await this.post<MFS100CaptureResponse>(
+          'capture',
+          {
+            Quality: qualityThreshold,
+            TimeOut: timeoutSeconds,
+          },
+          (timeoutSeconds + 5) * 1000
+        );
 
       const errorCode = this.getErrorCode(data.ErrorCode);
-      const errorDescription =
-        data.ErrorDescription || '';
 
       if (errorCode !== 0) {
         return {
           success: false,
           errorCode,
           errorDescription:
-            errorDescription ||
+            data.ErrorDescription ||
             `MFS100 capture failed with error code ${errorCode}.`,
           qualityScore: 0,
           templateData: '',
         };
       }
 
-      // Only accept actual biometric template fields.
-      // Never use BitmapData as a biometric template.
+      // ISO template is preferred, but format must be
+      // consistent with the backend's biometric matching system.
       const templateData =
-        data.IsoTemplate ||
-        data.AnsiTemplate ||
-        data.RawData ||
-        '';
+        data.IsoTemplate || '';
 
-      if (
-        typeof templateData !== 'string' ||
-        templateData.trim().length === 0
-      ) {
+      if (!templateData.trim()) {
         return {
           success: false,
           errorCode: -2,
           errorDescription:
-            'Capture response did not contain a valid biometric template.',
+            'ISO biometric template was not returned. Verify the SDK response format.',
           qualityScore: 0,
           templateData: '',
         };
       }
 
-      const parsedQuality = Number(data.Quality);
+      const qualityScore = Number(data.Quality);
 
       if (
-        !Number.isFinite(parsedQuality) ||
-        parsedQuality < 0 ||
-        parsedQuality > 100
+        !Number.isFinite(qualityScore) ||
+        qualityScore < 0 ||
+        qualityScore > 100
       ) {
         return {
           success: false,
@@ -292,8 +344,9 @@ export class MFS100Service {
       return {
         success: true,
         errorCode: 0,
-        errorDescription: 'Fingerprint captured successfully.',
-        qualityScore: parsedQuality,
+        errorDescription:
+          'Fingerprint captured successfully.',
+        qualityScore,
         templateData,
         previewImage,
         rawBmp: rawBmp || undefined,
@@ -301,10 +354,13 @@ export class MFS100Service {
       };
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Unknown capture error';
+        error instanceof Error
+          ? error.message
+          : 'Unknown capture error';
 
       const isTimeout =
-        error instanceof Error && error.name === 'AbortError';
+        error instanceof Error &&
+        error.name === 'AbortError';
 
       return {
         success: false,
