@@ -71,6 +71,8 @@ export interface DeviceStatus {
   driverInstalled: boolean;
   serviceRunning: boolean;
   message: string;
+  port?: number;
+  url?: string;
   details?: any;
 }
 

@@ -4,6 +4,7 @@ import { SlideOver } from '../common/SlideOver';
 import { mfs100Service } from '../../services/mfs100.service';
 import toast from 'react-hot-toast';
 
+
 interface FingerprintDiagnosticDrawerProps {
   isOpen: boolean;
   onClose: () => void;
