@@ -874,7 +874,7 @@ export const StudentsPage: React.FC = () => {
             : 'Student Registration Form'
         }
         onClose={handleCloseForm}
-        width="max-w-xl"
+        width="max-w-3xl lg:max-w-4xl"
       >
 
         {/* DIAGNOSTIC MODE */}
@@ -1163,96 +1163,73 @@ export const StudentsPage: React.FC = () => {
 
             </div>
 
-            {/* BIOMETRIC REGISTRATION */}
-
-            <div className="pt-5 border-t border-slate-100">
-
-              <div className="flex items-center justify-between mb-4">
-
-                <div>
-
-                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <FingerprintIcon className="w-4 h-4 text-brand-primary" />
-                    Biometric Fingerprint Registration
-                  </h4>
-
-                  <p className="text-xs text-slate-500 mt-1">
-                    Capture fingerprints using Mantra MFS100.
-                  </p>
-
-                </div>
-
-                <span className="text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-1 rounded">
-                  Port 8003
-                </span>
-
-              </div>
-
-              <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-200 justify-items-center">
-
+            {/* BIOMETRIC REGISTRATION - EXACT DESIGN MATCHING SCREENSHOT */}
+            <div className="pt-6 border-t border-slate-100">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5 my-2">
                 <FingerprintScanCard
-                  label="Finger 1"
+                  label="1. Fingerprint Capture"
                   fingerIndex="FINGER_1"
                   value={finger1}
                   onChange={setFinger1}
+                  onDeviceError={() => setDrawerMode('DIAGNOSTIC')}
                 />
 
                 <FingerprintScanCard
-                  label="Finger 2"
+                  label="2. Fingerprint Capture"
                   fingerIndex="FINGER_2"
                   value={finger2}
                   onChange={setFinger2}
+                  onDeviceError={() => setDrawerMode('DIAGNOSTIC')}
                 />
 
                 <FingerprintScanCard
-                  label="Finger 3"
+                  label="3. Fingerprint Capture"
                   fingerIndex="FINGER_3"
                   value={finger3}
                   onChange={setFinger3}
+                  onDeviceError={() => setDrawerMode('DIAGNOSTIC')}
                 />
-
               </div>
 
-              <p className="text-[11px] text-slate-500 mt-3">
-                Only successfully captured biometric templates will be submitted.
-                Existing enrollment is preserved unless you successfully capture
-                and submit a new fingerprint for the same finger.
-              </p>
-
-              {editingStudent && (
-                <p className="text-[11px] text-amber-700 mt-2">
-                  Existing enrolled fingerprints are not automatically loaded
-                  into these cards. Re-scan only the finger you want to replace.
+              {/* Exact Warning text matching screenshot */}
+              <div className="mt-6 mb-2 text-left">
+                <p className="text-xs text-[#f43f5e] font-medium leading-relaxed">
+                  <strong className="font-bold">Warning:</strong> This system utilizes student fingerprint data. Unauthorized access, use, or distribution of this sensitive information for personal or illegal purposes is strictly prohibited and may result in severe legal consequences. Ensure compliance with all applicable laws and regulations when handling this data.
                 </p>
-              )}
-
+              </div>
             </div>
 
-            {/* FORM ACTIONS */}
-
-            <div className="pt-6 flex items-center justify-end gap-3.5 border-t border-slate-100">
-
+            {/* FORM ACTIONS MATCHING SCREENSHOT (RESET & SUBMIT) */}
+            <div className="pt-5 flex items-center justify-end gap-3 border-t border-slate-100">
               <button
                 type="button"
-                onClick={handleCloseForm}
+                onClick={() => {
+                  reset({
+                    firstName: '',
+                    lastName: '',
+                    mobileNumber: '',
+                    email: '',
+                    batchId: batches[0]?.id || '',
+                    status: 'ACTIVE',
+                  });
+                  setFinger1(null);
+                  setFinger2(null);
+                  setFinger3(null);
+                  toast.success('Form reset successfully.');
+                }}
                 disabled={isSubmitting}
-                className="px-6 py-3 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 disabled:opacity-50"
+                className="px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-[#f97316] hover:bg-orange-600 shadow-sm transition-all disabled:opacity-50"
               >
-                CANCEL
+                RESET
               </button>
 
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-7 py-3 rounded-xl text-sm font-bold text-white bg-brand-primary disabled:opacity-50"
+                className="px-7 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-white bg-[#6366f1] hover:bg-indigo-600 shadow-sm transition-all disabled:opacity-50"
               >
-                {isSubmitting
-                  ? 'SAVING...'
-                  : editingStudent
-                    ? 'UPDATE STUDENT'
-                    : 'SUBMIT & REGISTER'}
+                {isSubmitting ? 'SUBMITTING...' : 'SUBMIT'}
               </button>
-
             </div>
 
           </form>

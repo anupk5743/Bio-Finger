@@ -6,6 +6,11 @@ export const fingerprintService = {
     return response.data.data;
   },
 
+  async captureDevice(quality: number = 60, timeout: number = 10) {
+    const response = await api.post('/fingerprints/device/capture', { quality, timeout });
+    return response.data.data || response.data;
+  },
+
   async getStudentFingerprints(studentId: string) {
     const response = await api.get(`/fingerprints/student/${studentId}`);
     return response.data.data;

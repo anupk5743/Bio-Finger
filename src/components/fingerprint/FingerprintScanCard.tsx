@@ -1,11 +1,5 @@
-
 import React, { useState } from 'react';
-import {
-  CheckCircle2,
-  Loader2,
-  Fingerprint as FingerprintIcon,
-} from 'lucide-react';
-
+import { CheckCircle2, Loader2, RotateCcw } from 'lucide-react';
 import { mfs100Service } from '../../services/mfs100.service';
 import toast from 'react-hot-toast';
 
@@ -27,6 +21,95 @@ interface FingerprintScanCardProps {
   isReadOnly?: boolean;
 }
 
+/**
+ * Pink-Rose-Orange gradient fingerprint icon matching the reference design.
+ */
+export const GradientFingerprintIcon: React.FC<{ className?: string }> = ({
+  className = 'w-24 h-32',
+}) => {
+  return (
+    <svg
+      viewBox="0 0 100 130"
+      className={className}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <linearGradient id="fpPinkOrangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#f43f5e" />
+          <stop offset="45%" stopColor="#ec4899" />
+          <stop offset="100%" stopColor="#fb923c" />
+        </linearGradient>
+      </defs>
+      {/* Outer arches */}
+      <path
+        d="M50 14 C28 14 14 30 14 54 C14 80 28 106 50 120"
+        stroke="url(#fpPinkOrangeGrad)"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+        opacity="0.85"
+      />
+      <path
+        d="M50 14 C72 14 86 30 86 54 C86 80 72 106 50 120"
+        stroke="url(#fpPinkOrangeGrad)"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+        opacity="0.85"
+      />
+      {/* Second layer arches */}
+      <path
+        d="M50 24 C33 24 23 37 23 54 C23 75 33 97 50 110"
+        stroke="url(#fpPinkOrangeGrad)"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+        opacity="0.9"
+      />
+      <path
+        d="M50 24 C67 24 77 37 77 54 C77 75 67 97 50 110"
+        stroke="url(#fpPinkOrangeGrad)"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+        opacity="0.9"
+      />
+      {/* Mid arches */}
+      <path
+        d="M50 34 C39 34 32 44 32 56 C32 70 39 85 50 97"
+        stroke="url(#fpPinkOrangeGrad)"
+        strokeWidth="2.9"
+        strokeLinecap="round"
+        opacity="0.95"
+      />
+      <path
+        d="M50 34 C61 34 68 44 68 56 C68 70 61 85 50 97"
+        stroke="url(#fpPinkOrangeGrad)"
+        strokeWidth="2.9"
+        strokeLinecap="round"
+        opacity="0.95"
+      />
+      {/* Inner loops */}
+      <path
+        d="M50 44 C44 44 40 50 40 59 C40 68 44 76 50 84"
+        stroke="url(#fpPinkOrangeGrad)"
+        strokeWidth="3.0"
+        strokeLinecap="round"
+      />
+      <path
+        d="M50 44 C56 44 60 50 60 59 C60 68 56 76 50 84"
+        stroke="url(#fpPinkOrangeGrad)"
+        strokeWidth="3.0"
+        strokeLinecap="round"
+      />
+      {/* Core ridge */}
+      <path
+        d="M50 54 C48.5 54 47.5 57 47.5 62 C47.5 67 49 71 50 73"
+        stroke="url(#fpPinkOrangeGrad)"
+        strokeWidth="3.0"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+};
+
 export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
   label,
   fingerIndex,
@@ -38,32 +121,27 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
   const [isScanning, setIsScanning] = useState(false);
 
   /**
-   * Capture a real fingerprint using Mantra MFS100.
-   * No dummy fingerprint or generated preview is used.
+   * Capture real fingerprint from Mantra MFS100 hardware.
+   * Turns on red scanner light physically.
    */
   const handleScan = async () => {
     if (isReadOnly || isScanning) return;
 
     setIsScanning(true);
-
-    // Clear previous data so a failed re-scan cannot retain old data.
     onChange(null);
 
-    toast.loading(
-      `Mantra MFS100: Place your finger on the scanner (${label})...`,
-      { id: 'scan-toast' }
-    );
+    toast.loading(`Mantra MFS100: Scanner light ON. Place finger on device...`, {
+      id: 'scan-toast',
+      duration: 10000,
+    });
 
     try {
       const result = await mfs100Service.capture(60, 10);
 
       if (!result?.success) {
-        throw new Error(
-          result?.errorDescription || 'Fingerprint capture failed.'
-        );
+        throw new Error(result?.errorDescription || 'Fingerprint capture failed.');
       }
 
-      // Accept only actual template data returned by the service.
       if (
         typeof result.templateData !== 'string' ||
         result.templateData.trim().length === 0
@@ -71,7 +149,6 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
         throw new Error('Scanner did not return a valid fingerprint template.');
       }
 
-      // The service must return the actual captured image as a data URL.
       if (
         typeof result.previewImage !== 'string' ||
         !result.previewImage.startsWith('data:image/')
@@ -80,12 +157,7 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
       }
 
       const qualityScore = Number(result.qualityScore);
-
-      if (
-        !Number.isFinite(qualityScore) ||
-        qualityScore < 0 ||
-        qualityScore > 100
-      ) {
+      if (!Number.isFinite(qualityScore) || qualityScore < 0 || qualityScore > 100) {
         throw new Error('Invalid fingerprint quality score received.');
       }
 
@@ -100,20 +172,14 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
 
       onChange(fingerprintData);
 
-      toast.success(
-        `${label} captured successfully. Quality: ${qualityScore}%`,
-        {
-          id: 'scan-toast',
-          duration: 4000,
-        }
-      );
+      toast.success(`${label} captured successfully! Quality: ${qualityScore}%`, {
+        id: 'scan-toast',
+        duration: 4000,
+      });
     } catch (error: unknown) {
       onChange(null);
-
       const errorMessage =
-        error instanceof Error
-          ? error.message
-          : 'Unable to capture fingerprint.';
+        error instanceof Error ? error.message : 'Unable to capture fingerprint.';
 
       toast.error(errorMessage, {
         id: 'scan-toast',
@@ -126,105 +192,90 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
     }
   };
 
-  const handleClear = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation();
-
     if (isScanning || isReadOnly) return;
-
     onChange(null);
   };
 
   return (
-    <div className="flex flex-col items-center w-full">
-      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
-        {label}
-      </span>
-
-      {/* Successfully captured real fingerprint */}
-      {value ? (
-        <div className="relative group w-28 h-36 sm:w-32 sm:h-40 rounded-2xl bg-black border-2 border-slate-900 shadow-md flex flex-col items-center justify-between p-2 overflow-hidden">
-          <div className="w-full flex-1 flex items-center justify-center overflow-hidden">
-            <img
-              src={value.previewImage}
-              alt={`${label} actual fingerprint capture`}
-              className="w-full h-full object-contain"
-            />
-          </div>
-
-          {/* Actual capture quality */}
-          <div className="w-full bg-black/90 py-1 px-1.5 rounded-lg flex items-center justify-center gap-1 border border-slate-800">
-            <CheckCircle2 className="w-3 h-3 text-emerald-400 flex-shrink-0" />
-
-            <span className="text-[11px] font-bold text-emerald-400 font-mono">
-              {value.qualityScore}%
-            </span>
-          </div>
-
-          {!isReadOnly && (
-            <div className="absolute inset-0 bg-black/85 backdrop-blur-[1px] rounded-2xl opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center gap-2 transition-opacity p-2.5 z-10">
-              <button
-                type="button"
-                disabled={isScanning}
-                onClick={handleScan}
-                className="w-full py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-              >
-                Re-Scan
-              </button>
-
-              <button
-                type="button"
-                disabled={isScanning}
-                onClick={handleClear}
-                className="w-full py-1.5 text-xs font-bold uppercase tracking-wider text-rose-300 bg-rose-950/70 border border-rose-800 rounded-lg hover:bg-rose-900 disabled:opacity-50"
-              >
-                Clear
-              </button>
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm flex flex-col items-center text-center justify-between transition-all hover:shadow-md w-full">
+      {/* Top illustration: Gradient fingerprint or real captured preview */}
+      <div className="w-full flex justify-center items-center py-2 min-h-[140px]">
+        {value ? (
+          <div className="relative group w-24 h-32 rounded-xl bg-black border-2 border-slate-900 shadow-md flex flex-col items-center justify-between p-1.5 overflow-hidden">
+            <div className="w-full flex-1 flex items-center justify-center overflow-hidden">
+              <img
+                src={value.previewImage}
+                alt={`${label} capture`}
+                className="w-full h-full object-contain filter contrast-125 brightness-105"
+                style={{ imageRendering: 'crisp-edges' }}
+              />
             </div>
-          )}
-        </div>
-      ) : (
-        /* Empty card or scanning state */
+            <div className="w-full bg-black/90 py-0.5 px-1 rounded flex items-center justify-center gap-1 border border-slate-800">
+              <CheckCircle2 className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+              <span className="text-[11px] font-bold text-emerald-400 font-mono">
+                {value.qualityScore}%
+              </span>
+            </div>
+          </div>
+        ) : (
+          <GradientFingerprintIcon className="w-24 h-32 drop-shadow-sm" />
+        )}
+      </div>
+
+      {/* Title matching exact screenshot: e.g. "1. Fingerprint Capture" */}
+      <h3 className="font-bold text-slate-900 text-base sm:text-lg tracking-tight mt-2">
+        {label}
+      </h3>
+
+      {/* Subtitle matching exact screenshot */}
+      <p className="text-xs text-slate-500 mt-1 mb-4 leading-relaxed max-w-[200px]">
+        {value
+          ? `Fingerprint captured (Quality: ${value.qualityScore}%)`
+          : 'Capture the fingerprint by clicking the button below.'}
+      </p>
+
+      {/* Button: Solid Green CAPTURE button matching exact screenshot */}
+      <div className="w-full flex items-center justify-center gap-2">
         <button
           type="button"
           disabled={isReadOnly || isScanning}
           onClick={handleScan}
-          className={`w-28 h-36 sm:w-32 sm:h-40 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-2.5 transition-all ${
+          className={`w-full py-2.5 px-6 rounded-xl font-bold uppercase tracking-wider text-xs sm:text-sm text-white shadow-sm transition-all flex items-center justify-center space-x-2 ${
             isScanning
-              ? 'border-indigo-500 bg-indigo-50/50 text-indigo-600 animate-pulse'
-              : isReadOnly
-                ? 'border-slate-200 bg-slate-50 text-slate-300 cursor-not-allowed'
-                : 'border-slate-300 hover:border-indigo-500 bg-white hover:bg-indigo-50/20 text-slate-400 hover:text-indigo-600 cursor-pointer'
-          }`}
+              ? 'bg-emerald-700 opacity-90 cursor-wait'
+              : value
+                ? 'bg-emerald-600 hover:bg-emerald-700'
+                : 'bg-[#00a86b] hover:bg-[#008f5b] active:scale-[0.98]'
+          } disabled:opacity-50`}
         >
           {isScanning ? (
-            <div className="flex flex-col items-center text-center">
-              <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-2" />
-
-              <span className="text-xs font-bold text-indigo-600">
-                Scanning...
-              </span>
-
-              <span className="text-[10px] text-slate-500 mt-1">
-                Place finger on device
-              </span>
-            </div>
+            <>
+              <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+              <span>SCANNING...</span>
+            </>
+          ) : value ? (
+            <>
+              <RotateCcw className="w-3.5 h-3.5 mr-1" />
+              <span>RE-CAPTURE</span>
+            </>
           ) : (
-            <div className="flex flex-col items-center text-center">
-              <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mb-2">
-                <FingerprintIcon className="w-7 h-7 text-slate-400" />
-              </div>
-
-              <span className="text-xs font-bold text-slate-700">
-                {isReadOnly ? 'Not Enrolled' : 'Click to Scan'}
-              </span>
-
-              <span className="text-[10px] text-slate-400 mt-0.5">
-                Mantra MFS100
-              </span>
-            </div>
+            <span>CAPTURE</span>
           )}
         </button>
-      )}
+
+        {value && !isReadOnly && (
+          <button
+            type="button"
+            onClick={handleClear}
+            title="Remove this fingerprint"
+            className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl border border-slate-200 transition-colors"
+          >
+            <span className="text-xs font-bold px-1">&times;</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 };
