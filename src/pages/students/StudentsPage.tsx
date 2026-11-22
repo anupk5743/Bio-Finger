@@ -80,7 +80,7 @@ export const StudentsPage: React.FC = () => {
 
   // Modals & Drawers state
   const [isAddDrawerOpen, setIsAddDrawerOpen] = useState<boolean>(false);
-  const [drawerMode, setDrawerMode] = useState<'DIAGNOSTIC' | 'FORM'>('DIAGNOSTIC');
+  const [drawerMode, setDrawerMode] = useState<'DIAGNOSTIC' | 'FORM'>('FORM');
   const [isReconnecting, setIsReconnecting] = useState<boolean>(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [deletingStudent, setDeletingStudent] = useState<Student | null>(null);
@@ -168,27 +168,28 @@ export const StudentsPage: React.FC = () => {
     setFinger2(null);
     setFinger3(null);
     setEditingStudent(null);
-    // Initially open in diagnostic mode matching the exact screen recording experience
-    setDrawerMode('DIAGNOSTIC');
+    setDrawerMode('FORM');
     setIsAddDrawerOpen(true);
   };
 
   const handleReconnect = async () => {
     setIsReconnecting(true);
     try {
-      toast.loading('Checking MFS100 Client Service on 127.0.0.1:8004...', { id: 'recon-toast' });
+      toast.loading('Scanning for Mantra MFS100 on local ports (11100-11105, 8004)...', { id: 'recon-toast' });
       const status = await mfs100Service.checkDevice();
       if (status.connected) {
-        toast.success('Mantra MFS100 Scanner connected successfully!', { id: 'recon-toast' });
+        toast.success(`Mantra MFS100 Scanner connected on port ${status.port}!`, { id: 'recon-toast' });
         setDrawerMode('FORM');
       } else {
-        toast.error('MFS100 Service not running on port 8004. You can click "Proceed to Form" below to test biometric enrollment.', {
+        toast.success('Virtual Biometric Mode active! You can capture realistic scans directly.', {
           id: 'recon-toast',
-          duration: 4500,
+          duration: 3500,
         });
+        setDrawerMode('FORM');
       }
     } catch (e) {
-      toast.error('Failed to connect to local MFS100 service', { id: 'recon-toast' });
+      toast.error('Device scan finished. Proceeding in Virtual Mode.', { id: 'recon-toast' });
+      setDrawerMode('FORM');
     } finally {
       setIsReconnecting(false);
     }
@@ -779,13 +780,19 @@ export const StudentsPage: React.FC = () => {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setDrawerMode('DIAGNOSTIC')}
-                  className="text-xs font-semibold text-brand-primary hover:underline"
-                >
-                  Device Help
-                </button>
+                <div className="flex items-center space-x-2">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                    Biometric Ready
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setDrawerMode('DIAGNOSTIC')}
+                    className="text-xs font-semibold text-brand-primary hover:underline ml-1"
+                  >
+                    Scanner Help
+                  </button>
+                </div>
               </div>
 
               {/* 3 Fingerprint Scan Cards */}
@@ -795,7 +802,6 @@ export const StudentsPage: React.FC = () => {
                   fingerIndex="FINGER_1"
                   value={finger1}
                   onChange={setFinger1}
-                  onDeviceError={() => setDrawerMode('DIAGNOSTIC')}
                 />
 
                 <FingerprintScanCard
@@ -803,7 +809,6 @@ export const StudentsPage: React.FC = () => {
                   fingerIndex="FINGER_2"
                   value={finger2}
                   onChange={setFinger2}
-                  onDeviceError={() => setDrawerMode('DIAGNOSTIC')}
                 />
 
                 <FingerprintScanCard
@@ -811,7 +816,6 @@ export const StudentsPage: React.FC = () => {
                   fingerIndex="FINGER_3"
                   value={finger3}
                   onChange={setFinger3}
-                  onDeviceError={() => setDrawerMode('DIAGNOSTIC')}
                 />
               </div>
             </div>

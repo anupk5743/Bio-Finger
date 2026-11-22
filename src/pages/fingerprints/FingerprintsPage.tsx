@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { fingerprintService } from '../../services/fingerprint.service';
+import { mfs100Service } from '../../services/mfs100.service';
 import { DeviceStatus } from '../../types';
 import { FingerprintDiagnosticDrawer } from '../../components/fingerprint/FingerprintDiagnosticDrawer';
 import toast from 'react-hot-toast';
@@ -22,19 +23,40 @@ export const FingerprintsPage: React.FC = () => {
   const checkDevice = async () => {
     setIsLoading(true);
     try {
-      const status = await fingerprintService.getDeviceStatus();
-      setDeviceStatus(status);
-      if (status.connected) {
-        toast.success('Mantra MFS100 Scanner connected!');
+      const clientStatus = await mfs100Service.checkDevice();
+      if (clientStatus.connected) {
+        setDeviceStatus({
+          connected: true,
+          status: 'CONNECTED',
+          deviceName: 'Mantra MFS100',
+          driverInstalled: true,
+          serviceRunning: true,
+          message: clientStatus.message,
+        });
+        toast.success(`Mantra MFS100 Scanner connected on port ${clientStatus.port}!`);
+      } else {
+        try {
+          const backendStatus = await fingerprintService.getDeviceStatus();
+          setDeviceStatus(backendStatus);
+        } catch {
+          setDeviceStatus({
+            connected: false,
+            status: 'SERVICE_NOT_RUNNING',
+            deviceName: 'Mantra MFS100',
+            driverInstalled: false,
+            serviceRunning: false,
+            message: 'Mantra MFS100 Service not detected. Virtual Biometric Mode active.',
+          });
+        }
       }
     } catch (error) {
       setDeviceStatus({
         connected: false,
         status: 'SERVICE_NOT_RUNNING',
         deviceName: 'Mantra MFS100',
-        driverInstalled: true,
+        driverInstalled: false,
         serviceRunning: false,
-        message: 'MFS100 Client Service is not responding on 127.0.0.1:8004',
+        message: 'Mantra MFS100 Service not detected. Virtual Biometric Mode active.',
       });
     } finally {
       setIsLoading(false);

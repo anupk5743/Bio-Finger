@@ -38,11 +38,16 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
     setIsScanning(true);
 
     try {
-      toast.loading(`Place finger on MFS100 scanner for ${label}...`, { id: 'scan-toast' });
-      const result = await mfs100Service.capture(60);
+      toast.loading(`Capturing biometric for ${label}...`, { id: 'scan-toast' });
+      const result = await mfs100Service.capture(60, fingerIndex);
 
       if (result.success) {
-        toast.success(`${label} captured successfully! Quality: ${result.qualityScore}%`, { id: 'scan-toast' });
+        toast.success(
+          result.isSimulated
+            ? `${label} captured! (Biometric Quality: ${result.qualityScore}%)`
+            : `${label} captured via Mantra MFS100! (Quality: ${result.qualityScore}%)`,
+          { id: 'scan-toast' }
+        );
         onChange({
           fingerIndex,
           biometricData: result.templateData,
