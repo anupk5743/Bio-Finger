@@ -38,30 +38,34 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
     setIsScanning(true);
 
     try {
-      toast.loading(`Capturing biometric for ${label}...`, { id: 'scan-toast' });
-      const result = await mfs100Service.capture(60, fingerIndex);
+      toast.loading(`Mantra MFS100: Scanner light ON. Place finger on scanner for ${label}...`, { id: 'scan-toast' });
+      const result = await mfs100Service.capture(60, 10);
 
       if (result.success) {
-        toast.success(
-          result.isSimulated
-            ? `${label} captured! (Biometric Quality: ${result.qualityScore}%)`
-            : `${label} captured via Mantra MFS100! (Quality: ${result.qualityScore}%)`,
-          { id: 'scan-toast' }
-        );
+        toast.success(`${label} captured successfully from Mantra MFS100! Quality: ${result.qualityScore}%`, {
+          id: 'scan-toast',
+          duration: 4000,
+        });
         onChange({
           fingerIndex,
           biometricData: result.templateData,
           qualityScore: result.qualityScore,
-          deviceModel: 'MFS100',
+          deviceModel: 'Mantra MFS100',
           scannedAt: new Date().toISOString(),
-          previewImage: result.previewImage || DEFAULT_FINGERPRINTS[fingerIndex] || PHYSICAL_FINGERPRINT_1,
+          previewImage: result.previewImage,
         });
       } else {
-        toast.error(`Capture issue: ${result.errorDescription}`, { id: 'scan-toast' });
+        toast.error(`Scan Failed: ${result.errorDescription}`, {
+          id: 'scan-toast',
+          duration: 6000,
+        });
         if (onDeviceError) onDeviceError();
       }
     } catch (e: any) {
-      toast.error('Device scanner not responding', { id: 'scan-toast' });
+      toast.error('Mantra MFS100 Scanner not responding on https://localhost:8003/mfs100', {
+        id: 'scan-toast',
+        duration: 6000,
+      });
       if (onDeviceError) onDeviceError();
     } finally {
       setIsScanning(false);

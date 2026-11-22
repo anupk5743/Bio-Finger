@@ -33,7 +33,7 @@ export const FingerprintsPage: React.FC = () => {
           serviceRunning: true,
           message: clientStatus.message,
         });
-        toast.success(`Mantra MFS100 Scanner connected on port ${clientStatus.port}!`);
+        toast.success(`Mantra MFS100 Scanner connected on ${clientStatus.url || clientStatus.port || 'port 8003'}!`);
       } else {
         try {
           const backendStatus = await fingerprintService.getDeviceStatus();
@@ -175,9 +175,9 @@ export const FingerprintsPage: React.FC = () => {
               <span>Local Service Bridge</span>
             </div>
             <p className="text-sm font-bold text-slate-900">
-              {deviceStatus?.serviceRunning ? 'Active (Port 8004)' : 'Stopped / Not Reachable'}
+              {deviceStatus?.serviceRunning ? 'Active (Port 8003)' : 'Stopped / Not Reachable'}
             </p>
-            <p className="text-[10px] text-slate-400 mt-0.5">127.0.0.1:8004 (HTTPS/HTTP)</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">https://localhost:8003/mfs100</p>
           </div>
 
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/60">

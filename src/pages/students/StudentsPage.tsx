@@ -175,21 +175,19 @@ export const StudentsPage: React.FC = () => {
   const handleReconnect = async () => {
     setIsReconnecting(true);
     try {
-      toast.loading('Scanning for Mantra MFS100 on local ports (11100-11105, 8004)...', { id: 'recon-toast' });
+      toast.loading('Connecting to Mantra MFS100 at https://localhost:8003/mfs100...', { id: 'recon-toast' });
       const status = await mfs100Service.checkDevice();
       if (status.connected) {
-        toast.success(`Mantra MFS100 Scanner connected on port ${status.port}!`, { id: 'recon-toast' });
+        toast.success(`Mantra MFS100 Connected on ${status.url}! Device ready.`, { id: 'recon-toast' });
         setDrawerMode('FORM');
       } else {
-        toast.success('Virtual Biometric Mode active! You can capture realistic scans directly.', {
+        toast.error('MFS100 Client Service not responding at https://localhost:8003/mfs100. Please start Mantra service.', {
           id: 'recon-toast',
-          duration: 3500,
+          duration: 5000,
         });
-        setDrawerMode('FORM');
       }
     } catch (e) {
-      toast.error('Device scan finished. Proceeding in Virtual Mode.', { id: 'recon-toast' });
-      setDrawerMode('FORM');
+      toast.error('Failed to connect to https://localhost:8003/mfs100', { id: 'recon-toast' });
     } finally {
       setIsReconnecting(false);
     }
@@ -781,16 +779,16 @@ export const StudentsPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
-                    Biometric Ready
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mr-1.5 animate-pulse"></span>
+                    Mantra MFS100: port 8003
                   </span>
                   <button
                     type="button"
                     onClick={() => setDrawerMode('DIAGNOSTIC')}
                     className="text-xs font-semibold text-brand-primary hover:underline ml-1"
                   >
-                    Scanner Help
+                    Scanner Setup
                   </button>
                 </div>
               </div>
