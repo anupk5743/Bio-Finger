@@ -203,26 +203,25 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm flex flex-col items-center text-center justify-between transition-all hover:shadow-md w-full">
       {/* Top illustration: Gradient fingerprint or real captured preview */}
-      <div className="w-full flex justify-center items-center py-2 min-h-[140px]">
+      <div className="w-full flex justify-center items-center py-2 min-h-[160px]">
         {value ? (
-          <div className="relative group w-24 h-32 rounded-xl bg-black border-2 border-slate-900 shadow-md flex flex-col items-center justify-between p-1.5 overflow-hidden">
-            <div className="w-full flex-1 flex items-center justify-center overflow-hidden">
+          <div className="relative group w-32 h-44 sm:w-36 sm:h-48 rounded-2xl bg-black border-2 border-slate-900 shadow-md flex flex-col items-center justify-between p-2 overflow-hidden transition-all hover:scale-[1.02]">
+            <div className="w-full flex-1 flex items-center justify-center overflow-hidden p-0.5">
               <img
                 src={displayPreview || value.previewImage}
                 alt={`${label} capture`}
-                className="w-full h-full object-contain filter contrast-125 brightness-105"
-                style={{ imageRendering: 'crisp-edges' }}
+                className="w-full h-full object-contain drop-shadow-md"
               />
             </div>
-            <div className="w-full bg-black/90 py-0.5 px-1 rounded flex items-center justify-center gap-1 border border-slate-800">
-              <CheckCircle2 className="w-3 h-3 text-emerald-400 flex-shrink-0" />
-              <span className="text-[11px] font-bold text-emerald-400 font-mono">
-                {value.qualityScore}%
+            <div className="w-full bg-black/90 py-1 px-1.5 rounded-lg flex items-center justify-center gap-1.5 border border-slate-800 mt-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+              <span className="text-xs font-bold text-emerald-400 font-mono tracking-tight">
+                {value.qualityScore}% Quality
               </span>
             </div>
           </div>
         ) : (
-          <GradientFingerprintIcon className="w-24 h-32 drop-shadow-sm" />
+          <GradientFingerprintIcon className="w-28 h-36 sm:w-32 sm:h-40 drop-shadow-sm" />
         )}
       </div>
 

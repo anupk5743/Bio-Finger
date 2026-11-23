@@ -49,33 +49,28 @@ export function useInvertedFingerprint(imageSource?: string | null): string {
         }
         const avgCornerBrightness = totalBrightness / cornerIndices.length;
 
-        // If background is light (> 110), invert to pure black background + white finger ridges
+        // If background is light (> 110), invert to pure black background + HD white ridges
         if (avgCornerBrightness > 110) {
           for (let i = 0; i < data.length; i += 4) {
-            let r = 255 - data[i];
-            let g = 255 - data[i + 1];
-            let b = 255 - data[i + 2];
+            const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            const inv = 255 - gray;
 
-            const gray = (r + g + b) / 3;
-            // Clean background noise to solid pitch-black
-            if (gray < 45) {
-              r = 0;
-              g = 0;
-              b = 0;
-            } else {
-              // High contrast bright white ridges
-              r = Math.min(255, Math.round(r * 1.35));
-              g = Math.min(255, Math.round(g * 1.35));
-              b = Math.min(255, Math.round(b * 1.35));
+            let outVal = 0;
+            // Clean non-contact background noise to pure black (#000000)
+            if (inv > 32) {
+              const norm = Math.min(1, (inv - 32) / (255 - 32));
+              // Gamma 0.75 for crisp, dense, visible ridges
+              const enhanced = Math.pow(norm, 0.75);
+              outVal = Math.min(255, Math.round(enhanced * 255));
             }
 
-            data[i] = r;
-            data[i + 1] = g;
-            data[i + 2] = b;
+            data[i] = outVal;
+            data[i + 1] = outVal;
+            data[i + 2] = outVal;
           }
           ctx.putImageData(imgData, 0, 0);
           if (isMounted) {
-            setProcessedSrc(canvas.toDataURL('image/jpeg', 0.9));
+            setProcessedSrc(canvas.toDataURL('image/png'));
           }
         } else {
           if (isMounted) setProcessedSrc(imageSource);
@@ -129,8 +124,7 @@ export const FingerprintPattern: React.FC<FingerprintPatternProps> = ({
         <img
           src={imgSrc}
           alt={type}
-          className="w-full h-full object-contain filter contrast-125 brightness-105"
-          style={{ imageRendering: 'crisp-edges' }}
+          className="w-full h-full object-contain drop-shadow-md"
         />
       </div>
 
@@ -226,8 +220,7 @@ export const BiometricFingerprintView: React.FC<BiometricFingerprintViewProps> =
         <img
           src={imageSource}
           alt={fingerIndex}
-          className="w-full h-full object-contain filter contrast-125 brightness-105"
-          style={{ imageRendering: 'crisp-edges' }}
+          className="w-full h-full object-contain drop-shadow-md"
         />
       </div>
       {showQualityBadge && (

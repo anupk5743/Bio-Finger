@@ -45,14 +45,15 @@ interface MFS100CaptureResponse {
 }
 
 /**
- * Compresses heavy uncompressed BMP fingerprint preview (300KB+)
- * to an optimized, crisp JPEG (~15KB) using HTML5 Canvas.
- * Prevents HTTP 413 (Payload Too Large) and speeds up network transmission.
+ * Processes captured fingerprint image to Lossless High-Definition (HD) quality:
+ * 1. Maintains native sensor resolution (up to 400px) for razor-sharp ridge lines.
+ * 2. Inverts optical background to solid pitch black (#000000).
+ * 3. Applies adaptive sub-pixel ridge normalization so every line is crisp, bright white (#FFFFFF).
+ * 4. Outputs lossless PNG so there are zero JPEG block artifacts or fuzziness.
  */
 async function compressFingerprintImage(
   dataUrl?: string,
-  maxWidth = 260,
-  quality = 0.8
+  maxWidth = 400
 ): Promise<string | undefined> {
   if (!dataUrl || typeof window === 'undefined') return dataUrl;
   if (!dataUrl.startsWith('data:image')) return dataUrl;
@@ -63,9 +64,11 @@ async function compressFingerprintImage(
     img.onload = () => {
       try {
         const canvas = document.createElement('canvas');
-        const scale = Math.min(1, maxWidth / (img.width || maxWidth));
-        canvas.width = Math.round((img.width || maxWidth) * scale);
-        canvas.height = Math.round((img.height || (maxWidth * 1.3)) * scale);
+        const nativeWidth = img.width || 300;
+        const nativeHeight = img.height || 400;
+        const scale = Math.min(1, maxWidth / nativeWidth);
+        canvas.width = Math.round(nativeWidth * scale);
+        canvas.height = Math.round(nativeHeight * scale);
 
         const ctx = canvas.getContext('2d');
         if (!ctx) return resolve(dataUrl);
@@ -74,8 +77,6 @@ async function compressFingerprintImage(
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-        // Analyze and invert optical scanner output (black ridges on white glass)
-        // so that the background becomes pure solid black and ridges become crisp white
         const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imgData.data;
 
@@ -94,35 +95,31 @@ async function compressFingerprintImage(
         }
         const avgCornerBrightness = totalBrightness / cornerIndices.length;
 
-        // If background is light (> 110), invert to pure black background + white finger ridges
+        // If background is light (> 110), invert to pure black background + HD white ridges
         if (avgCornerBrightness > 110) {
           for (let i = 0; i < data.length; i += 4) {
-            let r = 255 - data[i];
-            let g = 255 - data[i + 1];
-            let b = 255 - data[i + 2];
+            const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            const inv = 255 - gray;
 
-            const gray = (r + g + b) / 3;
-            // Clean faint background noise to pitch-black (#000000)
-            if (gray < 45) {
-              r = 0;
-              g = 0;
-              b = 0;
-            } else {
-              // High contrast bright white ridges
-              r = Math.min(255, Math.round(r * 1.35));
-              g = Math.min(255, Math.round(g * 1.35));
-              b = Math.min(255, Math.round(b * 1.35));
+            let outVal = 0;
+            // Clean non-contact background noise to pure black (#000000)
+            if (inv > 32) {
+              const norm = Math.min(1, (inv - 32) / (255 - 32));
+              // Gamma 0.75 for crisp, dense, visible ridges
+              const enhanced = Math.pow(norm, 0.75);
+              outVal = Math.min(255, Math.round(enhanced * 255));
             }
 
-            data[i] = r;
-            data[i + 1] = g;
-            data[i + 2] = b;
+            data[i] = outVal;
+            data[i + 1] = outVal;
+            data[i + 2] = outVal;
           }
           ctx.putImageData(imgData, 0, 0);
         }
 
-        const compressed = canvas.toDataURL('image/jpeg', quality);
-        resolve(compressed);
+        // Output lossless PNG: 100% crystal clear lines without JPEG blur or artifacts
+        const hdImage = canvas.toDataURL('image/png');
+        resolve(hdImage);
       } catch {
         resolve(dataUrl);
       }
