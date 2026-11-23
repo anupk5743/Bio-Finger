@@ -44,6 +44,47 @@ interface MFS100CaptureResponse {
   RawData?: string;
 }
 
+/**
+ * Compresses heavy uncompressed BMP fingerprint preview (300KB+)
+ * to an optimized, crisp JPEG (~15KB) using HTML5 Canvas.
+ * Prevents HTTP 413 (Payload Too Large) and speeds up network transmission.
+ */
+async function compressFingerprintImage(
+  dataUrl?: string,
+  maxWidth = 260,
+  quality = 0.8
+): Promise<string | undefined> {
+  if (!dataUrl || typeof window === 'undefined') return dataUrl;
+  if (!dataUrl.startsWith('data:image')) return dataUrl;
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(1, maxWidth / (img.width || maxWidth));
+        canvas.width = Math.round((img.width || maxWidth) * scale);
+        canvas.height = Math.round((img.height || (maxWidth * 1.3)) * scale);
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(dataUrl);
+
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const compressed = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressed);
+      } catch {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 export class MFS100Service {
   private candidateUrls = [
     'https://localhost:8003/mfs100',
@@ -234,11 +275,14 @@ export class MFS100Service {
           }
 
           const rawBmp = data.BitmapData || '';
-          const previewImage = rawBmp
+          const uncompressedPreview = rawBmp
             ? rawBmp.startsWith('data:')
               ? rawBmp
               : `data:image/bmp;base64,${rawBmp}`
             : undefined;
+
+          // Compress to lightweight JPEG (~15KB) to prevent 413 Payload Too Large
+          const previewImage = await compressFingerprintImage(uncompressedPreview);
 
           return {
             success: true,
@@ -265,13 +309,16 @@ export class MFS100Service {
       );
 
       if (bridgeResult && bridgeResult.success) {
+        // Compress preview from bridge to lightweight JPEG (~15KB)
+        const compressedBridgePreview = await compressFingerprintImage(bridgeResult.previewImage);
+
         return {
           success: true,
           errorCode: 0,
           errorDescription: bridgeResult.errorDescription || 'Fingerprint captured successfully.',
           qualityScore: Number(bridgeResult.qualityScore || 0),
           templateData: bridgeResult.templateData,
-          previewImage: bridgeResult.previewImage,
+          previewImage: compressedBridgePreview || bridgeResult.previewImage,
           rawBmp: bridgeResult.rawBmp,
           deviceInfo: bridgeResult.deviceInfo || 'Mantra MFS100',
         };
