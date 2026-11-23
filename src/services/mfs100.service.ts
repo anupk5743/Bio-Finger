@@ -74,6 +74,53 @@ async function compressFingerprintImage(
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
+        // Analyze and invert optical scanner output (black ridges on white glass)
+        // so that the background becomes pure solid black and ridges become crisp white
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+
+        const w = canvas.width;
+        const h = canvas.height;
+        const cornerIndices = [
+          0,
+          Math.min(data.length - 4, (w - 1) * 4),
+          Math.min(data.length - 4, (h - 1) * w * 4),
+          Math.min(data.length - 4, ((h - 1) * w + (w - 1)) * 4),
+        ];
+
+        let totalBrightness = 0;
+        for (const idx of cornerIndices) {
+          totalBrightness += (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+        }
+        const avgCornerBrightness = totalBrightness / cornerIndices.length;
+
+        // If background is light (> 110), invert to pure black background + white finger ridges
+        if (avgCornerBrightness > 110) {
+          for (let i = 0; i < data.length; i += 4) {
+            let r = 255 - data[i];
+            let g = 255 - data[i + 1];
+            let b = 255 - data[i + 2];
+
+            const gray = (r + g + b) / 3;
+            // Clean faint background noise to pitch-black (#000000)
+            if (gray < 45) {
+              r = 0;
+              g = 0;
+              b = 0;
+            } else {
+              // High contrast bright white ridges
+              r = Math.min(255, Math.round(r * 1.35));
+              g = Math.min(255, Math.round(g * 1.35));
+              b = Math.min(255, Math.round(b * 1.35));
+            }
+
+            data[i] = r;
+            data[i + 1] = g;
+            data[i + 2] = b;
+          }
+          ctx.putImageData(imgData, 0, 0);
+        }
+
         const compressed = canvas.toDataURL('image/jpeg', quality);
         resolve(compressed);
       } catch {

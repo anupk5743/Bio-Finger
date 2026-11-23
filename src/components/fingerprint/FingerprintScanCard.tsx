@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CheckCircle2, Loader2, RotateCcw } from 'lucide-react';
 import { mfs100Service } from '../../services/mfs100.service';
 import toast from 'react-hot-toast';
+import { useInvertedFingerprint } from '../biometrics/BiometricFingerprintView';
 
 export interface FingerprintData {
   fingerIndex: 'FINGER_1' | 'FINGER_2' | 'FINGER_3';
@@ -119,6 +120,7 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
   isReadOnly = false,
 }) => {
   const [isScanning, setIsScanning] = useState(false);
+  const displayPreview = useInvertedFingerprint(value?.previewImage);
 
   /**
    * Capture real fingerprint from Mantra MFS100 hardware.
@@ -206,7 +208,7 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
           <div className="relative group w-24 h-32 rounded-xl bg-black border-2 border-slate-900 shadow-md flex flex-col items-center justify-between p-1.5 overflow-hidden">
             <div className="w-full flex-1 flex items-center justify-center overflow-hidden">
               <img
-                src={value.previewImage}
+                src={displayPreview || value.previewImage}
                 alt={`${label} capture`}
                 className="w-full h-full object-contain filter contrast-125 brightness-105"
                 style={{ imageRendering: 'crisp-edges' }}

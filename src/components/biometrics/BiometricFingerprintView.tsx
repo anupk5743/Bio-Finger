@@ -2,6 +2,101 @@ import React from 'react';
 import { Fingerprint as FingerprintIcon, CheckCircle2 } from 'lucide-react';
 import { getDistinctStudentFingerprint } from '../../assets/fingerprints';
 
+/**
+ * Inverts optical scanner fingerprint output (dark ridges on white/light background)
+ * so that the background becomes solid pitch black (#000000) and the ridges become
+ * crisp, bright luminescent white (#FFFFFF).
+ */
+export function useInvertedFingerprint(imageSource?: string | null): string {
+  const [processedSrc, setProcessedSrc] = React.useState<string>(imageSource || '');
+
+  React.useEffect(() => {
+    if (!imageSource || !imageSource.startsWith('data:image')) {
+      setProcessedSrc(imageSource || '');
+      return;
+    }
+
+    let isMounted = true;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          if (isMounted) setProcessedSrc(imageSource);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0);
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+
+        const w = canvas.width;
+        const h = canvas.height;
+        const cornerIndices = [
+          0,
+          Math.min(data.length - 4, (w - 1) * 4),
+          Math.min(data.length - 4, (h - 1) * w * 4),
+          Math.min(data.length - 4, ((h - 1) * w + (w - 1)) * 4),
+        ];
+
+        let totalBrightness = 0;
+        for (const idx of cornerIndices) {
+          totalBrightness += (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+        }
+        const avgCornerBrightness = totalBrightness / cornerIndices.length;
+
+        // If background is light (> 110), invert to pure black background + white finger ridges
+        if (avgCornerBrightness > 110) {
+          for (let i = 0; i < data.length; i += 4) {
+            let r = 255 - data[i];
+            let g = 255 - data[i + 1];
+            let b = 255 - data[i + 2];
+
+            const gray = (r + g + b) / 3;
+            // Clean background noise to solid pitch-black
+            if (gray < 45) {
+              r = 0;
+              g = 0;
+              b = 0;
+            } else {
+              // High contrast bright white ridges
+              r = Math.min(255, Math.round(r * 1.35));
+              g = Math.min(255, Math.round(g * 1.35));
+              b = Math.min(255, Math.round(b * 1.35));
+            }
+
+            data[i] = r;
+            data[i + 1] = g;
+            data[i + 2] = b;
+          }
+          ctx.putImageData(imgData, 0, 0);
+          if (isMounted) {
+            setProcessedSrc(canvas.toDataURL('image/jpeg', 0.9));
+          }
+        } else {
+          if (isMounted) setProcessedSrc(imageSource);
+        }
+      } catch {
+        if (isMounted) setProcessedSrc(imageSource);
+      }
+    };
+    img.onerror = () => {
+      if (isMounted) setProcessedSrc(imageSource);
+    };
+    img.src = imageSource;
+
+    return () => {
+      isMounted = false;
+    };
+  }, [imageSource]);
+
+  return processedSrc;
+}
+
 export interface FingerprintPatternProps {
   type: 'FINGER_1' | 'FINGER_2' | 'FINGER_3';
   previewImage?: string | null;
@@ -19,10 +114,12 @@ export const FingerprintPattern: React.FC<FingerprintPatternProps> = ({
   qualityScore,
   className = 'w-full h-full',
 }) => {
-  const imgSrc =
+  const rawImgSrc =
     previewImage && previewImage.startsWith('data:image')
       ? previewImage
       : getDistinctStudentFingerprint(seed || type, type);
+
+  const imgSrc = useInvertedFingerprint(rawImgSrc);
 
   return (
     <div
@@ -94,6 +191,13 @@ export const BiometricFingerprintView: React.FC<BiometricFingerprintViewProps> =
   };
   const containerDimension = sizeClasses[size] || sizeClasses.md;
 
+  const rawImageSource =
+    previewImage && previewImage.startsWith('data:image')
+      ? previewImage
+      : getDistinctStudentFingerprint(seed || fingerIndex, fingerIndex);
+
+  const imageSource = useInvertedFingerprint(rawImageSource);
+
   if (!isEnrolled) {
     return (
       <div
@@ -109,12 +213,6 @@ export const BiometricFingerprintView: React.FC<BiometricFingerprintViewProps> =
       </div>
     );
   }
-
-  // Use the actual live scanned image if available; otherwise use deterministic authentic fingerprint for this student
-  const imageSource =
-    previewImage && previewImage.startsWith('data:image')
-      ? previewImage
-      : getDistinctStudentFingerprint(seed || fingerIndex, fingerIndex);
 
   return (
     <div
