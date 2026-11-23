@@ -1,4 +1,5 @@
 import { fingerprintService } from './fingerprint.service';
+import { AIFingerprintEnhancer } from './aiFingerprintEnhancer.service';
 
 export interface MFS100CaptureResult {
   success: boolean;
@@ -325,8 +326,10 @@ export class MFS100Service {
               : `data:image/bmp;base64,${rawBmp}`
             : undefined;
 
-          // Compress to lightweight JPEG (~15KB) to prevent 413 Payload Too Large
-          const previewImage = await compressFingerprintImage(uncompressedPreview);
+          // AI Biometric Restoration: enhances ridges to crystal-clear HD white on pure black
+          const previewImage = uncompressedPreview
+            ? await AIFingerprintEnhancer.enhance(uncompressedPreview)
+            : undefined;
 
           return {
             success: true,
@@ -353,8 +356,10 @@ export class MFS100Service {
       );
 
       if (bridgeResult && bridgeResult.success) {
-        // Compress preview from bridge to lightweight JPEG (~15KB)
-        const compressedBridgePreview = await compressFingerprintImage(bridgeResult.previewImage);
+        // AI Biometric Restoration: enhances ridges to crystal-clear HD white on pure black
+        const aiEnhancedPreview = bridgeResult.previewImage
+          ? await AIFingerprintEnhancer.enhance(bridgeResult.previewImage)
+          : undefined;
 
         return {
           success: true,
@@ -362,7 +367,7 @@ export class MFS100Service {
           errorDescription: bridgeResult.errorDescription || 'Fingerprint captured successfully.',
           qualityScore: Number(bridgeResult.qualityScore || 0),
           templateData: bridgeResult.templateData,
-          previewImage: compressedBridgePreview || bridgeResult.previewImage,
+          previewImage: aiEnhancedPreview || bridgeResult.previewImage,
           rawBmp: bridgeResult.rawBmp,
           deviceInfo: bridgeResult.deviceInfo || 'Mantra MFS100',
         };

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, Loader2, RotateCcw } from 'lucide-react';
+import { CheckCircle2, Loader2, RotateCcw, Sparkles } from 'lucide-react';
 import { mfs100Service } from '../../services/mfs100.service';
 import toast from 'react-hot-toast';
 import { useInvertedFingerprint } from '../biometrics/BiometricFingerprintView';
@@ -174,7 +174,7 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
 
       onChange(fingerprintData);
 
-      toast.success(`${label} captured successfully! Quality: ${qualityScore}%`, {
+      toast.success(`${label} captured & AI HD enhanced! Quality: ${qualityScore}%`, {
         id: 'scan-toast',
         duration: 4000,
       });
@@ -213,10 +213,16 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
                 className="w-full h-full object-contain drop-shadow-md"
               />
             </div>
-            <div className="w-full bg-black/90 py-1 px-1.5 rounded-lg flex items-center justify-center gap-1.5 border border-slate-800 mt-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-              <span className="text-xs font-bold text-emerald-400 font-mono tracking-tight">
-                {value.qualityScore}% Quality
+            <div className="w-full bg-black/90 py-1 px-2 rounded-lg flex items-center justify-between border border-slate-800 mt-1">
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <span className="text-xs font-bold text-emerald-400 font-mono tracking-tight">
+                  {value.qualityScore}% Quality
+                </span>
+              </div>
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-950/90 text-indigo-300 border border-indigo-700/60 font-mono tracking-tight">
+                <Sparkles className="w-2.5 h-2.5 text-indigo-400" />
+                AI HD
               </span>
             </div>
           </div>

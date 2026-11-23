@@ -1,11 +1,12 @@
 import React from 'react';
-import { Fingerprint as FingerprintIcon, CheckCircle2 } from 'lucide-react';
+import { Fingerprint as FingerprintIcon, CheckCircle2, Sparkles } from 'lucide-react';
 import { getDistinctStudentFingerprint } from '../../assets/fingerprints';
+import { AIFingerprintEnhancer } from '../../services/aiFingerprintEnhancer.service';
 
 /**
- * Inverts optical scanner fingerprint output (dark ridges on white/light background)
- * so that the background becomes solid pitch black (#000000) and the ridges become
- * crisp, bright luminescent white (#FFFFFF).
+ * AI-enhanced biometric image processor:
+ * Cleans background to solid pitch black (#000000) and sharpens friction ridges
+ * into ultra-high-definition, crystal-clear white (#FFFFFF).
  */
 export function useInvertedFingerprint(imageSource?: string | null): string {
   const [processedSrc, setProcessedSrc] = React.useState<string>(imageSource || '');
@@ -17,72 +18,13 @@ export function useInvertedFingerprint(imageSource?: string | null): string {
     }
 
     let isMounted = true;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          if (isMounted) setProcessedSrc(imageSource);
-          return;
-        }
-
-        ctx.drawImage(img, 0, 0);
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imgData.data;
-
-        const w = canvas.width;
-        const h = canvas.height;
-        const cornerIndices = [
-          0,
-          Math.min(data.length - 4, (w - 1) * 4),
-          Math.min(data.length - 4, (h - 1) * w * 4),
-          Math.min(data.length - 4, ((h - 1) * w + (w - 1)) * 4),
-        ];
-
-        let totalBrightness = 0;
-        for (const idx of cornerIndices) {
-          totalBrightness += (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-        }
-        const avgCornerBrightness = totalBrightness / cornerIndices.length;
-
-        // If background is light (> 110), invert to pure black background + HD white ridges
-        if (avgCornerBrightness > 110) {
-          for (let i = 0; i < data.length; i += 4) {
-            const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
-            const inv = 255 - gray;
-
-            let outVal = 0;
-            // Clean non-contact background noise to pure black (#000000)
-            if (inv > 32) {
-              const norm = Math.min(1, (inv - 32) / (255 - 32));
-              // Gamma 0.75 for crisp, dense, visible ridges
-              const enhanced = Math.pow(norm, 0.75);
-              outVal = Math.min(255, Math.round(enhanced * 255));
-            }
-
-            data[i] = outVal;
-            data[i + 1] = outVal;
-            data[i + 2] = outVal;
-          }
-          ctx.putImageData(imgData, 0, 0);
-          if (isMounted) {
-            setProcessedSrc(canvas.toDataURL('image/png'));
-          }
-        } else {
-          if (isMounted) setProcessedSrc(imageSource);
-        }
-      } catch {
+    AIFingerprintEnhancer.enhance(imageSource)
+      .then((enhanced) => {
+        if (isMounted) setProcessedSrc(enhanced);
+      })
+      .catch(() => {
         if (isMounted) setProcessedSrc(imageSource);
-      }
-    };
-    img.onerror = () => {
-      if (isMounted) setProcessedSrc(imageSource);
-    };
-    img.src = imageSource;
+      });
 
     return () => {
       isMounted = false;
@@ -224,10 +166,16 @@ export const BiometricFingerprintView: React.FC<BiometricFingerprintViewProps> =
         />
       </div>
       {showQualityBadge && (
-        <div className="w-full bg-black/90 py-1 px-1.5 rounded-lg flex items-center justify-center space-x-1 border border-slate-800 mt-1">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-          <span className="text-[11px] font-bold text-emerald-400 font-mono tracking-tight">
-            {qualityScore > 0 ? `${qualityScore}%` : 'Enrolled'}
+        <div className="w-full bg-black/90 py-1 px-1.5 rounded-lg flex items-center justify-between border border-slate-800 mt-1">
+          <div className="flex items-center space-x-1">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+            <span className="text-[11px] font-bold text-emerald-400 font-mono tracking-tight">
+              {qualityScore > 0 ? `${qualityScore}%` : 'Enrolled'}
+            </span>
+          </div>
+          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-950/90 text-indigo-300 border border-indigo-700/60 font-mono tracking-tight">
+            <Sparkles className="w-2.5 h-2.5 text-indigo-400" />
+            AI HD
           </span>
         </div>
       )}
