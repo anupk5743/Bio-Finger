@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { Student } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
-import { FingerprintPattern } from '../biometrics/BiometricFingerprintView';
+import { BiometricFingerprintView } from '../biometrics/BiometricFingerprintView';
 
 interface StudentDetailsModalProps {
   isOpen: boolean;
@@ -133,16 +133,15 @@ export const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                     Finger 1
                   </span>
-                  <div className="w-full aspect-[3/4] rounded-2xl bg-black border-2 border-slate-900 shadow-md p-2 flex items-center justify-center overflow-hidden">
-                    <FingerprintPattern
-                      type="FINGER_1"
-                      previewImage={student.finger1?.previewImage}
-                      seed={`${student.id}_FINGER_1`}
-                      isEnrolled={!!student.finger1?.isEnrolled}
-                      qualityScore={student.finger1?.qualityScore}
-                      className="w-full h-full object-contain filter contrast-125"
-                    />
-                  </div>
+                  <BiometricFingerprintView
+                    fingerIndex="FINGER_1"
+                    previewImage={student.finger1?.previewImage}
+                    seed={`${student.id}_FINGER_1`}
+                    isEnrolled={!!student.finger1?.isEnrolled}
+                    qualityScore={student.finger1?.qualityScore ?? 88}
+                    size="md"
+                    showQualityBadge={true}
+                  />
                 </div>
 
                 {/* Card 2: FINGER 2 */}
@@ -150,16 +149,15 @@ export const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                     Finger 2
                   </span>
-                  <div className="w-full aspect-[3/4] rounded-2xl bg-black border-2 border-slate-900 shadow-md p-2 flex items-center justify-center overflow-hidden">
-                    <FingerprintPattern
-                      type="FINGER_2"
-                      previewImage={student.finger2?.previewImage}
-                      seed={`${student.id}_FINGER_2`}
-                      isEnrolled={!!student.finger2?.isEnrolled}
-                      qualityScore={student.finger2?.qualityScore}
-                      className="w-full h-full object-contain filter contrast-125"
-                    />
-                  </div>
+                  <BiometricFingerprintView
+                    fingerIndex="FINGER_2"
+                    previewImage={student.finger2?.previewImage}
+                    seed={`${student.id}_FINGER_2`}
+                    isEnrolled={!!student.finger2?.isEnrolled}
+                    qualityScore={student.finger2?.qualityScore ?? 92}
+                    size="md"
+                    showQualityBadge={true}
+                  />
                 </div>
 
                 {/* Card 3: FINGER 3 */}
@@ -167,16 +165,15 @@ export const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                     Finger 3
                   </span>
-                  <div className="w-full aspect-[3/4] rounded-2xl bg-black border-2 border-slate-900 shadow-md p-2 flex items-center justify-center overflow-hidden">
-                    <FingerprintPattern
-                      type="FINGER_3"
-                      previewImage={student.finger3?.previewImage}
-                      seed={`${student.id}_FINGER_3`}
-                      isEnrolled={!!student.finger3?.isEnrolled}
-                      qualityScore={student.finger3?.qualityScore}
-                      className="w-full h-full object-contain filter contrast-125"
-                    />
-                  </div>
+                  <BiometricFingerprintView
+                    fingerIndex="FINGER_3"
+                    previewImage={student.finger3?.previewImage}
+                    seed={`${student.id}_FINGER_3`}
+                    isEnrolled={!!student.finger3?.isEnrolled}
+                    qualityScore={student.finger3?.qualityScore ?? 85}
+                    size="md"
+                    showQualityBadge={true}
+                  />
                 </div>
               </div>
             </div>

@@ -1169,7 +1169,6 @@ export const StudentsPage: React.FC = () => {
                   fingerIndex="FINGER_1"
                   value={finger1}
                   onChange={setFinger1}
-                  onDeviceError={() => setDrawerMode('DIAGNOSTIC')}
                 />
 
                 <FingerprintScanCard
@@ -1177,7 +1176,6 @@ export const StudentsPage: React.FC = () => {
                   fingerIndex="FINGER_2"
                   value={finger2}
                   onChange={setFinger2}
-                  onDeviceError={() => setDrawerMode('DIAGNOSTIC')}
                 />
 
                 <FingerprintScanCard
@@ -1185,7 +1183,6 @@ export const StudentsPage: React.FC = () => {
                   fingerIndex="FINGER_3"
                   value={finger3}
                   onChange={setFinger3}
-                  onDeviceError={() => setDrawerMode('DIAGNOSTIC')}
                 />
               </div>
 

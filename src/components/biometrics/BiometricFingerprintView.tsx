@@ -32,7 +32,7 @@ export const FingerprintPattern: React.FC<FingerprintPatternProps> = ({
         <img
           src={imgSrc}
           alt={type}
-          className="w-full h-full max-h-28 object-contain filter contrast-125 brightness-105"
+          className="w-full h-full object-contain filter contrast-125 brightness-105"
           style={{ imageRendering: 'crisp-edges' }}
         />
       </div>
