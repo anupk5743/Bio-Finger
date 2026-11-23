@@ -1,13 +1,26 @@
+
 import { fingerprintService } from './fingerprint.service';
 import { AIFingerprintEnhancer } from './aiFingerprintEnhancer.service';
+
+/* =========================================================
+   TYPES
+========================================================= */
 
 export interface MFS100CaptureResult {
   success: boolean;
   errorCode: number;
   errorDescription: string;
   qualityScore: number;
+
+  // Original ISO / ANSI biometric template.
   templateData: string;
+
+  // Enhanced image for UI display only.
   previewImage?: string;
+
+  // Untouched original scanner image.
+  originalPreviewImage?: string;
+
   deviceInfo?: string;
   rawBmp?: string;
 }
@@ -45,93 +58,12 @@ interface MFS100CaptureResponse {
   RawData?: string;
 }
 
-/**
- * Processes captured fingerprint image to Lossless High-Definition (HD) quality:
- * 1. Maintains native sensor resolution (up to 400px) for razor-sharp ridge lines.
- * 2. Inverts optical background to solid pitch black (#000000).
- * 3. Applies adaptive sub-pixel ridge normalization so every line is crisp, bright white (#FFFFFF).
- * 4. Outputs lossless PNG so there are zero JPEG block artifacts or fuzziness.
- */
-async function compressFingerprintImage(
-  dataUrl?: string,
-  maxWidth = 400
-): Promise<string | undefined> {
-  if (!dataUrl || typeof window === 'undefined') return dataUrl;
-  if (!dataUrl.startsWith('data:image')) return dataUrl;
-
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        const nativeWidth = img.width || 300;
-        const nativeHeight = img.height || 400;
-        const scale = Math.min(1, maxWidth / nativeWidth);
-        canvas.width = Math.round(nativeWidth * scale);
-        canvas.height = Math.round(nativeHeight * scale);
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return resolve(dataUrl);
-
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imgData.data;
-
-        const w = canvas.width;
-        const h = canvas.height;
-        const cornerIndices = [
-          0,
-          Math.min(data.length - 4, (w - 1) * 4),
-          Math.min(data.length - 4, (h - 1) * w * 4),
-          Math.min(data.length - 4, ((h - 1) * w + (w - 1)) * 4),
-        ];
-
-        let totalBrightness = 0;
-        for (const idx of cornerIndices) {
-          totalBrightness += (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-        }
-        const avgCornerBrightness = totalBrightness / cornerIndices.length;
-
-        // If background is light (> 110), invert to pure black background + HD white ridges
-        if (avgCornerBrightness > 110) {
-          for (let i = 0; i < data.length; i += 4) {
-            const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
-            const inv = 255 - gray;
-
-            let outVal = 0;
-            // Clean non-contact background noise to pure black (#000000)
-            if (inv > 32) {
-              const norm = Math.min(1, (inv - 32) / (255 - 32));
-              // Gamma 0.75 for crisp, dense, visible ridges
-              const enhanced = Math.pow(norm, 0.75);
-              outVal = Math.min(255, Math.round(enhanced * 255));
-            }
-
-            data[i] = outVal;
-            data[i + 1] = outVal;
-            data[i + 2] = outVal;
-          }
-          ctx.putImageData(imgData, 0, 0);
-        }
-
-        // Output lossless PNG: 100% crystal clear lines without JPEG blur or artifacts
-        const hdImage = canvas.toDataURL('image/png');
-        resolve(hdImage);
-      } catch {
-        resolve(dataUrl);
-      }
-    };
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
-  });
-}
+/* =========================================================
+   MFS100 SERVICE
+========================================================= */
 
 export class MFS100Service {
-  private candidateUrls = [
+  private candidateUrls: string[] = [
     'https://localhost:8003/mfs100',
     'http://localhost:8003/mfs100',
     'https://127.0.0.1:8003/mfs100',
@@ -141,116 +73,234 @@ export class MFS100Service {
     'http://127.0.0.1:8004',
   ];
 
-  private activeBaseUrl: string = 'https://localhost:8003/mfs100';
+  private activeBaseUrl = 'https://localhost:8003/mfs100';
 
   private getErrorCode(value: unknown): number {
     if (typeof value === 'number') {
       return Number.isFinite(value) ? value : -1;
     }
+
     if (typeof value === 'string' && value.trim() !== '') {
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed : -1;
     }
+
     return -1;
   }
 
+  /* =======================================================
+     IMAGE HELPERS
+  ======================================================= */
+
   /**
-   * Direct fetch wrapper with timeout
+   * Convert scanner BitmapData to a browser-readable image URL.
+   * Does not modify original image bytes.
    */
+  private normalizeBitmapData(
+    bitmapData?: string
+  ): string | undefined {
+    if (!bitmapData || !bitmapData.trim()) {
+      return undefined;
+    }
+
+    const value = bitmapData.trim();
+
+    if (value.startsWith('data:image/')) {
+      return value;
+    }
+
+    // Remove accidental whitespace from base64.
+    const base64 = value.replace(/\s/g, '');
+
+    return `data:image/bmp;base64,${base64}`;
+  }
+
+  /**
+   * Keep original image and enhanced display image separate.
+   *
+   * Original image:
+   * - Preserved without pixel modification.
+   *
+   * Enhanced image:
+   * - Used only for visual presentation.
+   */
+  private async processFingerprintPreview(
+    originalImage?: string
+  ): Promise<{
+    originalPreviewImage?: string;
+    previewImage?: string;
+  }> {
+    if (!originalImage) {
+      return {
+        originalPreviewImage: undefined,
+        previewImage: undefined,
+      };
+    }
+
+    try {
+      const enhancedImage =
+        await AIFingerprintEnhancer.enhance(originalImage);
+
+      return {
+        originalPreviewImage: originalImage,
+        previewImage: enhancedImage || originalImage,
+      };
+    } catch (error) {
+      console.error(
+        'Fingerprint preview enhancement failed:',
+        error
+      );
+
+      // Preserve capture even if image enhancement fails.
+      return {
+        originalPreviewImage: originalImage,
+        previewImage: originalImage,
+      };
+    }
+  }
+
+  /* =======================================================
+     DIRECT HTTP REQUEST
+  ======================================================= */
+
   private async directRequest<T>(
     baseUrl: string,
     endpoint: string,
     method: 'GET' | 'POST',
-    body?: any,
-    timeoutMs: number = 5000
+    body?: unknown,
+    timeoutMs = 5000
   ): Promise<T> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const timeoutId = window.setTimeout(
+      () => controller.abort(),
+      timeoutMs
+    );
 
     try {
-      const response = await fetch(`${baseUrl}/${endpoint}`, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-        signal: controller.signal,
-      });
+      const response = await fetch(
+        `${baseUrl}/${endpoint}`,
+        {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          ...(body !== undefined
+            ? { body: JSON.stringify(body) }
+            : {}),
+          signal: controller.signal,
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`MFS100 HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(
+          `MFS100 HTTP ${response.status}: ${response.statusText}`
+        );
       }
 
       return (await response.json()) as T;
     } finally {
-      clearTimeout(timeoutId);
+      window.clearTimeout(timeoutId);
     }
   }
 
-  /**
-   * Checks MFS100 device across candidate ports and backend proxy
-   */
+  /* =======================================================
+     DEVICE STATUS
+  ======================================================= */
+
   async checkDevice(): Promise<DeviceStatusResult> {
-    // 1. Try candidate direct URLs
+    // First attempt: direct MFS100 connection.
     for (const url of this.candidateUrls) {
       try {
         let data: MFS100InfoResponse | null = null;
+
         try {
-          data = await this.directRequest<MFS100InfoResponse>(url, 'info', 'POST', {}, 2000);
+          data = await this.directRequest<MFS100InfoResponse>(
+            url,
+            'info',
+            'POST',
+            {},
+            2000
+          );
         } catch {
-          data = await this.directRequest<MFS100InfoResponse>(url, 'info', 'GET', undefined, 2000);
+          data = await this.directRequest<MFS100InfoResponse>(
+            url,
+            'info',
+            'GET',
+            undefined,
+            2000
+          );
         }
 
-        if (data) {
-          this.activeBaseUrl = url;
-          const errorCode = this.getErrorCode(data.ErrorCode);
-          const port = url.includes('8004') ? 8004 : 8003;
+        if (!data) {
+          continue;
+        }
 
-          if (data.ErrorCode !== undefined && errorCode !== 0) {
-            return {
-              connected: false,
-              status: 'NOT_READY',
-              url,
-              port,
-              message: data.ErrorDescription || `MFS100 returned error code ${errorCode}.`,
-            };
-          }
+        const errorCode = this.getErrorCode(data.ErrorCode);
+        const port = url.includes('8004') ? 8004 : 8003;
 
-          const deviceInfo = data.DeviceInfo;
+        if (
+          data.ErrorCode !== undefined &&
+          errorCode !== 0
+        ) {
           return {
-            connected: true,
-            status: 'READY',
+            connected: false,
+            status: 'NOT_READY',
             url,
             port,
-            deviceModel: deviceInfo?.Model || 'Mantra MFS100',
-            serialNumber: deviceInfo?.SerialNo || '',
-            width: deviceInfo?.Width,
-            height: deviceInfo?.Height,
-            message: 'Mantra MFS100 connected and ready.',
+            message:
+              data.ErrorDescription ||
+              `MFS100 returned error code ${errorCode}.`,
           };
         }
-      } catch {
-        // Continue to next candidate
-      }
-    }
 
-    // 2. Fallback: Query backend device bridge (bypasses browser SSL cert restriction)
-    try {
-      const bridgeStatus = await fingerprintService.getDeviceStatus();
-      if (bridgeStatus && bridgeStatus.connected) {
-        this.activeBaseUrl = bridgeStatus.url || 'https://localhost:8003/mfs100';
+        this.activeBaseUrl = url;
+
+        const deviceInfo = data.DeviceInfo;
+
         return {
           connected: true,
           status: 'READY',
-          url: bridgeStatus.url || 'https://localhost:8003/mfs100',
+          url,
+          port,
+          deviceModel:
+            deviceInfo?.Model || 'Mantra MFS100',
+          serialNumber: deviceInfo?.SerialNo || '',
+          width: deviceInfo?.Width,
+          height: deviceInfo?.Height,
+          message: 'Mantra MFS100 connected and ready.',
+        };
+      } catch {
+        // Try next candidate URL.
+      }
+    }
+
+    // Second attempt: local backend bridge.
+    try {
+      const bridgeStatus =
+        await fingerprintService.getDeviceStatus();
+
+      if (bridgeStatus?.connected) {
+        const bridgeUrl =
+          bridgeStatus.url ||
+          'https://localhost:8003/mfs100';
+
+        this.activeBaseUrl = bridgeUrl;
+
+        return {
+          connected: true,
+          status: 'READY',
+          url: bridgeUrl,
           port: bridgeStatus.port || 8003,
-          deviceModel: bridgeStatus.deviceName || 'Mantra MFS100',
-          message: 'Mantra MFS100 connected via local bridge.',
+          deviceModel:
+            bridgeStatus.deviceName || 'Mantra MFS100',
+          message:
+            'Mantra MFS100 connected via local bridge.',
         };
       }
     } catch {
-      // Backend bridge also unreachable or failed
+      // Bridge unavailable.
     }
 
     return {
@@ -259,143 +309,227 @@ export class MFS100Service {
       url: this.activeBaseUrl,
       port: 8003,
       message:
-        'MFS100 Client Service not responding at https://localhost:8003/mfs100. Please start Mantra MFS100 service in Windows Services.',
+        'MFS100 Client Service not responding. ' +
+        'Please start Mantra MFS100 service in Windows Services.',
+    };
+  }
+
+  /* =======================================================
+     CAPTURE VALIDATION
+  ======================================================= */
+
+  private createCaptureError(
+    errorCode: number,
+    errorDescription: string
+  ): MFS100CaptureResult {
+    return {
+      success: false,
+      errorCode,
+      errorDescription,
+      qualityScore: 0,
+      templateData: '',
     };
   }
 
   /**
-   * Fingerprint capture from physical hardware.
-   * Direct hardware capture with automatic backend bridge fallback.
+   * Creates the final successful capture response.
+   *
+   * IMPORTANT:
+   * templateData is never passed through image enhancement.
    */
+  private async createCaptureResult(
+    templateData: string,
+    qualityScore: number,
+    originalImage?: string,
+    rawBmp?: string,
+    deviceInfo = 'Mantra MFS100',
+    errorDescription = 'Fingerprint captured successfully.'
+  ): Promise<MFS100CaptureResult> {
+    const images =
+      await this.processFingerprintPreview(originalImage);
+
+    return {
+      success: true,
+      errorCode: 0,
+      errorDescription,
+      qualityScore,
+      templateData,
+
+      // Enhanced UI image.
+      previewImage: images.previewImage,
+
+      // Original scanner image.
+      originalPreviewImage:
+        images.originalPreviewImage,
+
+      rawBmp,
+      deviceInfo,
+    };
+  }
+
+  /* =======================================================
+     DIRECT HARDWARE CAPTURE
+  ======================================================= */
+
   async capture(
-    qualityThreshold: number = 60,
-    timeoutSeconds: number = 10
+    qualityThreshold = 60,
+    timeoutSeconds = 10
   ): Promise<MFS100CaptureResult> {
     const payload = {
       Quality: qualityThreshold,
       TimeOut: timeoutSeconds,
     };
 
-    // 1. Attempt direct capture on active and candidate URLs
     const urlsToTry = [
       this.activeBaseUrl,
-      ...this.candidateUrls.filter((u) => u !== this.activeBaseUrl),
+      ...this.candidateUrls.filter(
+        url => url !== this.activeBaseUrl
+      ),
     ];
 
     let lastError = '';
 
+    // 1. Try direct hardware connection.
     for (const url of urlsToTry) {
       try {
-        const data = await this.directRequest<MFS100CaptureResponse>(
-          url,
-          'capture',
-          'POST',
-          payload,
-          (timeoutSeconds + 4) * 1000
+        const data =
+          await this.directRequest<MFS100CaptureResponse>(
+            url,
+            'capture',
+            'POST',
+            payload,
+            (timeoutSeconds + 4) * 1000
+          );
+
+        if (!data) {
+          continue;
+        }
+
+        this.activeBaseUrl = url;
+
+        const errorCode = this.getErrorCode(
+          data.ErrorCode
         );
 
-        if (data) {
-          this.activeBaseUrl = url;
-          const errorCode = this.getErrorCode(data.ErrorCode);
-
-          if (errorCode !== 0) {
-            return {
-              success: false,
-              errorCode,
-              errorDescription: data.ErrorDescription || `Capture failed with error ${errorCode}.`,
-              qualityScore: 0,
-              templateData: '',
-            };
-          }
-
-          const templateData = data.IsoTemplate || data.AnsiTemplate || '';
-          if (!templateData.trim()) {
-            return {
-              success: false,
-              errorCode: -2,
-              errorDescription: 'ISO biometric template not returned by scanner.',
-              qualityScore: 0,
-              templateData: '',
-            };
-          }
-
-          const rawBmp = data.BitmapData || '';
-          const uncompressedPreview = rawBmp
-            ? rawBmp.startsWith('data:')
-              ? rawBmp
-              : `data:image/bmp;base64,${rawBmp}`
-            : undefined;
-
-          // AI Biometric Restoration: enhances ridges to crystal-clear HD white on pure black
-          const previewImage = uncompressedPreview
-            ? await AIFingerprintEnhancer.enhance(uncompressedPreview)
-            : undefined;
-
-          return {
-            success: true,
-            errorCode: 0,
-            errorDescription: 'Fingerprint captured successfully.',
-            qualityScore: Number(data.Quality || 0),
-            templateData,
-            previewImage,
-            rawBmp: rawBmp || undefined,
-            deviceInfo: 'Mantra MFS100',
-          };
+        if (errorCode !== 0) {
+          return this.createCaptureError(
+            errorCode,
+            data.ErrorDescription ||
+              `Capture failed with error ${errorCode}.`
+          );
         }
-      } catch (err: any) {
-        lastError = err.message || 'Capture failed';
+
+        // Keep original biometric template unchanged.
+        const templateData =
+          data.IsoTemplate ||
+          data.AnsiTemplate ||
+          '';
+
+        if (!templateData.trim()) {
+          return this.createCaptureError(
+            -2,
+            'ISO/ANSI biometric template not returned by scanner.'
+          );
+        }
+
+        // Original scanner image.
+        const rawBmp = data.BitmapData || '';
+
+        const originalImage =
+          this.normalizeBitmapData(rawBmp);
+
+        // Generate separate enhanced display preview.
+        return await this.createCaptureResult(
+          templateData,
+          Number(data.Quality || 0),
+          originalImage,
+          rawBmp || undefined,
+          'Mantra MFS100'
+        );
+      } catch (error: unknown) {
+        lastError =
+          error instanceof Error
+            ? error.message
+            : 'Direct MFS100 capture failed.';
       }
     }
 
-    // 2. Direct browser fetch failed (often due to localhost self-signed SSL certificate).
-    // Use local backend bridge proxy to trigger hardware scan:
+    // 2. Direct browser connection failed.
+    // Try local backend bridge.
     try {
-      const bridgeResult = await fingerprintService.captureDevice(
-        qualityThreshold,
-        timeoutSeconds
-      );
+      const bridgeResult =
+        await fingerprintService.captureDevice(
+          qualityThreshold,
+          timeoutSeconds
+        );
 
-      if (bridgeResult && bridgeResult.success) {
-        // AI Biometric Restoration: enhances ridges to crystal-clear HD white on pure black
-        const aiEnhancedPreview = bridgeResult.previewImage
-          ? await AIFingerprintEnhancer.enhance(bridgeResult.previewImage)
-          : undefined;
+      if (bridgeResult?.success) {
+        const templateData =
+          bridgeResult.templateData || '';
 
-        return {
-          success: true,
-          errorCode: 0,
-          errorDescription: bridgeResult.errorDescription || 'Fingerprint captured successfully.',
-          qualityScore: Number(bridgeResult.qualityScore || 0),
-          templateData: bridgeResult.templateData,
-          previewImage: aiEnhancedPreview || bridgeResult.previewImage,
-          rawBmp: bridgeResult.rawBmp,
-          deviceInfo: bridgeResult.deviceInfo || 'Mantra MFS100',
-        };
-      } else if (bridgeResult && bridgeResult.errorDescription) {
-        return {
-          success: false,
-          errorCode: bridgeResult.errorCode || -1,
-          errorDescription: bridgeResult.errorDescription,
-          qualityScore: 0,
-          templateData: '',
-        };
+        if (!templateData.trim()) {
+          return this.createCaptureError(
+            -2,
+            'Biometric template not returned by backend bridge.'
+          );
+        }
+
+        // Do not modify the original bridge image.
+        const originalImage =
+          bridgeResult.previewImage || undefined;
+
+        return await this.createCaptureResult(
+          templateData,
+          Number(bridgeResult.qualityScore || 0),
+          originalImage,
+          bridgeResult.rawBmp,
+          bridgeResult.deviceInfo || 'Mantra MFS100',
+          bridgeResult.errorDescription ||
+            'Fingerprint captured successfully.'
+        );
       }
-    } catch (bridgeErr: any) {
-      lastError = bridgeErr?.response?.data?.message || bridgeErr.message || lastError;
+
+      if (bridgeResult?.errorDescription) {
+        return this.createCaptureError(
+          bridgeResult.errorCode || -1,
+          bridgeResult.errorDescription
+        );
+      }
+    } catch (error: unknown) {
+      const bridgeError = error as {
+        response?: {
+          data?: {
+            message?: string;
+          };
+        };
+        message?: string;
+      };
+
+      lastError =
+        bridgeError.response?.data?.message ||
+        bridgeError.message ||
+        lastError;
     }
 
-    return {
-      success: false,
-      errorCode: -1,
-      errorDescription: `Mantra MFS100 scanner not connected: ${lastError}. Ensure MFS100 Client Service is running at https://localhost:8003/mfs100.`,
-      qualityScore: 0,
-      templateData: '',
-    };
+    return this.createCaptureError(
+      -1,
+      `Mantra MFS100 scanner not connected: ${lastError}. ` +
+        'Ensure MFS100 Client Service is running at ' +
+        'https://localhost:8003/mfs100.'
+    );
   }
+
+  /* =======================================================
+     UTILITY
+  ======================================================= */
 
   getActiveUrl(): string {
     return this.activeBaseUrl;
   }
 }
+
+/* =========================================================
+   SINGLETON INSTANCE
+========================================================= */
 
 export const mfs100Service = new MFS100Service();
