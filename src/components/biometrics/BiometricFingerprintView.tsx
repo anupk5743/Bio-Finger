@@ -153,16 +153,18 @@ export const BiometricFingerprintView: React.FC<BiometricFingerprintViewProps> =
   return (
     <div
       onClick={onClick}
-      className={`relative group ${containerDimension} rounded-2xl bg-black border-2 border-slate-900 shadow-md flex flex-col items-center justify-between p-2 mx-auto overflow-hidden transition-all hover:scale-[1.02] ${
+      className={`relative group ${containerDimension} rounded-2xl bg-black border-2 border-slate-900 shadow-md flex flex-col items-center ${
+        showQualityBadge ? 'p-2 justify-between' : 'p-1 sm:p-1.5 justify-center'
+      } mx-auto overflow-hidden transition-all hover:scale-[1.02] ${
         onClick ? 'cursor-pointer hover:ring-2 hover:ring-brand-primary hover:shadow-lg' : ''
       } ${className}`}
       title={`${fingerIndex.replace('_', ' ')} - Enrolled (${qualityScore}% Quality)`}
     >
-      <div className="w-full flex-1 flex items-center justify-center p-0.5 overflow-hidden">
+      <div className="w-full h-full flex-1 flex items-center justify-center p-0 overflow-hidden">
         <img
           src={imageSource}
           alt={fingerIndex}
-          className="w-full h-full object-contain drop-shadow-md"
+          className="w-full h-full object-contain"
         />
       </div>
       {showQualityBadge && (

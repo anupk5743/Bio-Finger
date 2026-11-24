@@ -736,7 +736,7 @@ export const StudentsPage: React.FC = () => {
                         qualityScore={student.finger1?.qualityScore ?? 0}
                         previewImage={student.finger1?.previewImage}
                         seed={`${student.id || student.mobileNumber}_FINGER_1`}
-                        showQualityBadge={true}
+                        showQualityBadge={false}
                         size="md"
                         onClick={() => navigate(`/students/${student.id}`)}
                       />
@@ -750,7 +750,7 @@ export const StudentsPage: React.FC = () => {
                         qualityScore={student.finger2?.qualityScore ?? 0}
                         previewImage={student.finger2?.previewImage}
                         seed={`${student.id || student.mobileNumber}_FINGER_2`}
-                        showQualityBadge={true}
+                        showQualityBadge={false}
                         size="md"
                         onClick={() => navigate(`/students/${student.id}`)}
                       />
@@ -764,7 +764,7 @@ export const StudentsPage: React.FC = () => {
                         qualityScore={student.finger3?.qualityScore ?? 0}
                         previewImage={student.finger3?.previewImage}
                         seed={`${student.id || student.mobileNumber}_FINGER_3`}
-                        showQualityBadge={true}
+                        showQualityBadge={false}
                         size="md"
                         onClick={() => navigate(`/students/${student.id}`)}
                       />
