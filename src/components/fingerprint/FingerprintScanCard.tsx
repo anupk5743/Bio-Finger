@@ -202,18 +202,17 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
 
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm flex flex-col items-center text-center justify-between transition-all hover:shadow-md w-full">
-      {/* Top illustration: Gradient fingerprint or real captured preview */}
-      <div className="w-full flex justify-center items-center py-2 min-h-[160px]">
+      {/* Top illustration: Gradient fingerprint with laser animation when scanning or real captured preview */}
+      <div className="w-full flex justify-center items-center py-2 min-h-[155px]">
         {isScanning ? (
-          <div className="w-[104px] h-[126px] rounded-xl bg-black border border-emerald-500/70 shadow-lg flex flex-col items-center justify-center p-3 animate-pulse">
-            <Loader2 className="w-8 h-8 text-emerald-400 animate-spin mb-2" />
-            <span className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">Scanning</span>
-            <span className="text-[9px] text-slate-400 mt-0.5 font-mono">Place Finger</span>
+          <div className="relative w-24 h-32 flex items-center justify-center overflow-hidden">
+            <GradientFingerprintIcon className="w-24 h-32 opacity-80" />
+            <div className="animate-scan-laser" />
           </div>
         ) : value ? (
           <div className="flex flex-col items-center">
-            {/* Same box size as table: w-[104px] h-[126px] rounded-xl bg-black */}
-            <div className="relative group w-[104px] h-[126px] rounded-xl bg-black border border-black shadow-md flex items-center justify-center p-1 overflow-hidden transition-all hover:scale-[1.02]">
+            {/* Same box size as table: w-[96px] h-[118px] rounded-xl bg-black */}
+            <div className="relative group w-[96px] h-[118px] rounded-xl bg-black border border-black shadow-md flex items-center justify-center p-1 overflow-hidden transition-all hover:scale-[1.02]">
               <div className="w-full h-full flex items-center justify-center overflow-hidden">
                 <img
                   src={displayPreview || value.previewImage}
@@ -224,7 +223,7 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
             </div>
 
             {/* Scan ke baad: Percentage aur AI HD show ho */}
-            <div className="w-[104px] bg-black/95 py-1 px-1.5 rounded-lg flex items-center justify-between border border-slate-800 mt-2 shadow-sm">
+            <div className="w-[96px] bg-black/95 py-0.5 px-1.5 rounded-lg flex items-center justify-between border border-slate-800 mt-1.5 shadow-sm">
               <div className="flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                 <span className="text-[10px] font-bold text-emerald-400 font-mono tracking-tight">
@@ -254,43 +253,34 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
           : 'Capture the fingerprint by clicking the button below.'}
       </p>
 
-      {/* Button: Solid Green CAPTURE button matching exact screenshot */}
-      <div className="w-full flex items-center justify-center gap-2">
-        <button
-          type="button"
-          disabled={isReadOnly || isScanning}
-          onClick={handleScan}
-          className={`w-full py-2.5 px-6 rounded-xl font-bold uppercase tracking-wider text-xs sm:text-sm text-white shadow-sm transition-all flex items-center justify-center space-x-2 ${
-            isScanning
-              ? 'bg-emerald-700 opacity-90 cursor-wait'
-              : value
-                ? 'bg-emerald-600 hover:bg-emerald-700'
-                : 'bg-[#00a86b] hover:bg-[#008f5b] active:scale-[0.98]'
-          } disabled:opacity-50`}
-        >
-          {isScanning ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
-              <span>SCANNING...</span>
-            </>
-          ) : value ? (
-            <>
-              <RotateCcw className="w-3.5 h-3.5 mr-1" />
-              <span>RE-CAPTURE</span>
-            </>
-          ) : (
-            <span>CAPTURE</span>
-          )}
-        </button>
-
-        {value && !isReadOnly && (
+      {/* Buttons matching exact video: Green CAPTURE -> Purple SCANNING -> Red CLEAR */}
+      <div className="w-full flex items-center justify-center">
+        {isScanning ? (
           <button
             type="button"
-            onClick={handleClear}
-            title="Remove this fingerprint"
-            className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl border border-slate-200 transition-colors"
+            disabled
+            className="w-full py-2.5 px-6 rounded-xl font-bold uppercase tracking-wider text-xs sm:text-sm text-white bg-[#5B50E5] shadow-sm flex items-center justify-center space-x-2 cursor-wait"
           >
-            <span className="text-xs font-bold px-1">&times;</span>
+            <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+            <span>SCANNING...</span>
+          </button>
+        ) : value ? (
+          <button
+            type="button"
+            disabled={isReadOnly}
+            onClick={handleClear}
+            className="w-full py-2.5 px-6 rounded-xl font-bold uppercase tracking-wider text-xs sm:text-sm text-white bg-[#f43f5e] hover:bg-[#e11d48] shadow-sm transition-all flex items-center justify-center space-x-2 active:scale-[0.98]"
+          >
+            <span>CLEAR</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={isReadOnly}
+            onClick={handleScan}
+            className="w-full py-2.5 px-6 rounded-xl font-bold uppercase tracking-wider text-xs sm:text-sm text-white bg-[#00a86b] hover:bg-[#008f5b] shadow-sm transition-all flex items-center justify-center space-x-2 active:scale-[0.98] disabled:opacity-50"
+          >
+            <span>CAPTURE</span>
           </button>
         )}
       </div>

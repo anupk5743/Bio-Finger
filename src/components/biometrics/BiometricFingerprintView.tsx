@@ -119,11 +119,11 @@ export const BiometricFingerprintView: React.FC<BiometricFingerprintViewProps> =
   showQualityBadge = true,
   className = '',
 }) => {
-  // Exact match to reference screenshot (w ~104px, h ~126px, rounded-xl, pure black card)
+  // Exact match to reference screenshot & video (w ~96px, h ~118px, rounded-xl, pure black card)
   const sizeClasses = {
-    sm: 'w-[88px] h-[108px]',
-    md: 'w-[104px] h-[126px]',
-    lg: 'w-[140px] h-[170px]',
+    sm: 'w-[84px] h-[104px]',
+    md: 'w-[96px] h-[118px]',
+    lg: 'w-[130px] h-[160px]',
   };
   const containerDimension = sizeClasses[size] || sizeClasses.md;
 

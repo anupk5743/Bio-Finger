@@ -987,8 +987,23 @@ export const StudentsPage: React.FC = () => {
 
           <form
             onSubmit={handleSubmit(handleFormSubmit)}
-            className="space-y-5"
+            className="space-y-5 relative"
           >
+            {/* SUBMISSION PROCESSING OVERLAY MATCHING EXACT VIDEO AT 52s-60s */}
+            {isSubmitting && (
+              <div className="absolute inset-0 z-40 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center min-h-[420px]">
+                <div className="relative mb-5 flex items-center justify-center">
+                  <div className="w-20 h-20 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin" />
+                  <FingerprintIcon className="w-9 h-9 text-indigo-600 absolute animate-pulse" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-800">
+                  Fingerprints are processing...
+                </h3>
+                <p className="text-xs text-slate-400 mt-1 font-mono">
+                  AES-256 encrypting & registering student biometric records
+                </p>
+              </div>
+            )}
 
             {/* TROUBLESHOOTING NAVIGATION */}
 
