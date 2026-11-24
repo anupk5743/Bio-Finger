@@ -119,11 +119,12 @@ export const BiometricFingerprintView: React.FC<BiometricFingerprintViewProps> =
   showQualityBadge = true,
   className = '',
 }) => {
-  // Exact match to reference screenshot & video (w ~96px, h ~118px, rounded-xl, pure black card)
+  // Calibrated to match reference screenshot:
+  // Card dimension: w-[100px] h-[114px] (aspect ratio ~0.88, rounded-xl, pure black card)
   const sizeClasses = {
-    sm: 'w-[84px] h-[104px]',
-    md: 'w-[96px] h-[118px]',
-    lg: 'w-[130px] h-[160px]',
+    sm: 'w-[84px] h-[98px]',
+    md: 'w-[100px] h-[114px]',
+    lg: 'w-[130px] h-[148px]',
   };
   const containerDimension = sizeClasses[size] || sizeClasses.md;
 
@@ -169,7 +170,7 @@ export const BiometricFingerprintView: React.FC<BiometricFingerprintViewProps> =
       </div>
 
       {showQualityBadge && (
-        <div className="w-[104px] bg-black/95 py-0.5 px-1.5 rounded-lg flex items-center justify-between border border-slate-800 mt-1.5 shadow-sm">
+        <div className="w-[100px] bg-black/95 py-0.5 px-1.5 rounded-lg flex items-center justify-between border border-slate-800 mt-1.5 shadow-sm">
           <div className="flex items-center space-x-1">
             <CheckCircle2 className="w-3 h-3 text-emerald-400 flex-shrink-0" />
             <span className="text-[10px] font-bold text-emerald-400 font-mono tracking-tight">

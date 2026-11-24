@@ -211,8 +211,8 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
           </div>
         ) : value ? (
           <div className="flex flex-col items-center">
-            {/* Same box size as table: w-[96px] h-[118px] rounded-xl bg-black */}
-            <div className="relative group w-[96px] h-[118px] rounded-xl bg-black border border-black shadow-md flex items-center justify-center p-1 overflow-hidden transition-all hover:scale-[1.02]">
+            {/* Same box size as table: w-[100px] h-[114px] rounded-xl bg-black */}
+            <div className="relative group w-[100px] h-[114px] rounded-xl bg-black border border-black shadow-md flex items-center justify-center p-1 overflow-hidden transition-all hover:scale-[1.02]">
               <div className="w-full h-full flex items-center justify-center overflow-hidden">
                 <img
                   src={displayPreview || value.previewImage}
@@ -223,7 +223,7 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
             </div>
 
             {/* Scan ke baad: Percentage aur AI HD show ho */}
-            <div className="w-[96px] bg-black/95 py-0.5 px-1.5 rounded-lg flex items-center justify-between border border-slate-800 mt-1.5 shadow-sm">
+            <div className="w-[100px] bg-black/95 py-0.5 px-1.5 rounded-lg flex items-center justify-between border border-slate-800 mt-1.5 shadow-sm">
               <div className="flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                 <span className="text-[10px] font-bold text-emerald-400 font-mono tracking-tight">
