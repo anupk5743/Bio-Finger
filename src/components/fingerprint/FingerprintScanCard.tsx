@@ -138,7 +138,7 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
     });
 
     try {
-      const result = await mfs100Service.capture(60, 10);
+      const result = await mfs100Service.capture(55, 10);
 
       if (!result?.success) {
         throw new Error(result?.errorDescription || 'Fingerprint capture failed.');
@@ -203,15 +203,38 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm flex flex-col items-center text-center justify-between transition-all hover:shadow-md w-full">
       {/* Top illustration: Gradient fingerprint or real captured preview */}
-      <div className="w-full flex justify-center items-center py-2 min-h-[150px]">
-        {value ? (
-          <div className="relative group w-[104px] h-[126px] sm:w-[110px] sm:h-[132px] rounded-xl bg-black border border-black shadow-md flex items-center justify-center p-1 overflow-hidden transition-all hover:scale-[1.02]">
-            <div className="w-full h-full flex items-center justify-center overflow-hidden">
-              <img
-                src={displayPreview || value.previewImage}
-                alt={`${label} capture`}
-                className="w-full h-full object-contain"
-              />
+      <div className="w-full flex justify-center items-center py-2 min-h-[160px]">
+        {isScanning ? (
+          <div className="w-[104px] h-[126px] rounded-xl bg-black border border-emerald-500/70 shadow-lg flex flex-col items-center justify-center p-3 animate-pulse">
+            <Loader2 className="w-8 h-8 text-emerald-400 animate-spin mb-2" />
+            <span className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider">Scanning</span>
+            <span className="text-[9px] text-slate-400 mt-0.5 font-mono">Place Finger</span>
+          </div>
+        ) : value ? (
+          <div className="flex flex-col items-center">
+            {/* Same box size as table: w-[104px] h-[126px] rounded-xl bg-black */}
+            <div className="relative group w-[104px] h-[126px] rounded-xl bg-black border border-black shadow-md flex items-center justify-center p-1 overflow-hidden transition-all hover:scale-[1.02]">
+              <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                <img
+                  src={displayPreview || value.previewImage}
+                  alt={`${label} capture`}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            </div>
+
+            {/* Scan ke baad: Percentage aur AI HD show ho */}
+            <div className="w-[104px] bg-black/95 py-1 px-1.5 rounded-lg flex items-center justify-between border border-slate-800 mt-2 shadow-sm">
+              <div className="flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <span className="text-[10px] font-bold text-emerald-400 font-mono tracking-tight">
+                  {value.qualityScore}%
+                </span>
+              </div>
+              <span className="inline-flex items-center gap-0.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-950/90 text-indigo-300 border border-indigo-700/60 font-mono tracking-tight">
+                <Sparkles className="w-2.5 h-2.5 text-indigo-400" />
+                AI HD
+              </span>
             </div>
           </div>
         ) : (

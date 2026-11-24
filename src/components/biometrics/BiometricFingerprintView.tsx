@@ -151,24 +151,25 @@ export const BiometricFingerprintView: React.FC<BiometricFingerprintViewProps> =
   }
 
   return (
-    <div
-      onClick={onClick}
-      className={`relative group ${containerDimension} rounded-xl bg-black border border-black shadow-sm flex flex-col items-center ${
-        showQualityBadge ? 'p-1.5 justify-between' : 'p-1 justify-center'
-      } mx-auto overflow-hidden transition-all hover:scale-[1.02] ${
-        onClick ? 'cursor-pointer hover:ring-2 hover:ring-brand-primary hover:shadow-md' : ''
-      } ${className}`}
-      title={`${fingerIndex.replace('_', ' ')} - Enrolled (${qualityScore}% Quality)`}
-    >
-      <div className="w-full h-full flex-1 flex items-center justify-center p-0 overflow-hidden">
-        <img
-          src={imageSource}
-          alt={fingerIndex}
-          className="w-full h-full object-contain"
-        />
+    <div className={`flex flex-col items-center mx-auto ${className}`}>
+      <div
+        onClick={onClick}
+        className={`relative group ${containerDimension} rounded-xl bg-black border border-black shadow-sm flex items-center justify-center p-1 overflow-hidden transition-all hover:scale-[1.02] ${
+          onClick ? 'cursor-pointer hover:ring-2 hover:ring-brand-primary hover:shadow-md' : ''
+        }`}
+        title={`${fingerIndex.replace('_', ' ')} - Enrolled (${qualityScore}% Quality)`}
+      >
+        <div className="w-full h-full flex items-center justify-center overflow-hidden">
+          <img
+            src={imageSource}
+            alt={fingerIndex}
+            className="w-full h-full object-contain"
+          />
+        </div>
       </div>
+
       {showQualityBadge && (
-        <div className="w-full bg-black/90 py-0.5 px-1.5 rounded-lg flex items-center justify-between border border-slate-800 mt-1">
+        <div className="w-[104px] bg-black/95 py-0.5 px-1.5 rounded-lg flex items-center justify-between border border-slate-800 mt-1.5 shadow-sm">
           <div className="flex items-center space-x-1">
             <CheckCircle2 className="w-3 h-3 text-emerald-400 flex-shrink-0" />
             <span className="text-[10px] font-bold text-emerald-400 font-mono tracking-tight">
