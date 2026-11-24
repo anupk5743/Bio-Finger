@@ -679,9 +679,9 @@ export const StudentsPage: React.FC = () => {
                   <th className="py-4 px-6">NAME</th>
                   <th className="py-4 px-6">BATCH</th>
                   <th className="py-4 px-6">STATUS</th>
-                  <th className="py-4 px-6 text-center">FINGER 1</th>
-                  <th className="py-4 px-6 text-center">FINGER 2</th>
-                  <th className="py-4 px-6 text-center">FINGER 3</th>
+                  <th className="py-4 px-2 text-center w-[120px]">FINGER 1</th>
+                  <th className="py-4 px-2 text-center w-[120px]">FINGER 2</th>
+                  <th className="py-4 px-2 text-center w-[120px]">FINGER 3</th>
                   <th className="py-4 px-6 text-right">ACTION</th>
 
                 </tr>
@@ -729,7 +729,7 @@ export const StudentsPage: React.FC = () => {
                     </td>
 
                     {/* FINGER 1 */}
-                    <td className="py-4 px-3 text-center min-w-[140px]">
+                    <td className="py-3 px-2 text-center w-[120px]">
                       <BiometricFingerprintView
                         fingerIndex="FINGER_1"
                         isEnrolled={!!student.finger1?.isEnrolled}
@@ -743,7 +743,7 @@ export const StudentsPage: React.FC = () => {
                     </td>
 
                     {/* FINGER 2 */}
-                    <td className="py-4 px-3 text-center min-w-[140px]">
+                    <td className="py-3 px-2 text-center w-[120px]">
                       <BiometricFingerprintView
                         fingerIndex="FINGER_2"
                         isEnrolled={!!student.finger2?.isEnrolled}
@@ -757,7 +757,7 @@ export const StudentsPage: React.FC = () => {
                     </td>
 
                     {/* FINGER 3 */}
-                    <td className="py-4 px-3 text-center min-w-[140px]">
+                    <td className="py-3 px-2 text-center w-[120px]">
                       <BiometricFingerprintView
                         fingerIndex="FINGER_3"
                         isEnrolled={!!student.finger3?.isEnrolled}

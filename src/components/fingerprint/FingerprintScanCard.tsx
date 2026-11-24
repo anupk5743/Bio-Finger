@@ -203,31 +203,19 @@ export const FingerprintScanCard: React.FC<FingerprintScanCardProps> = ({
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm flex flex-col items-center text-center justify-between transition-all hover:shadow-md w-full">
       {/* Top illustration: Gradient fingerprint or real captured preview */}
-      <div className="w-full flex justify-center items-center py-2 min-h-[160px]">
+      <div className="w-full flex justify-center items-center py-2 min-h-[150px]">
         {value ? (
-          <div className="relative group w-32 h-44 sm:w-36 sm:h-48 rounded-2xl bg-black border-2 border-slate-900 shadow-md flex flex-col items-center justify-between p-2 overflow-hidden transition-all hover:scale-[1.02]">
-            <div className="w-full flex-1 flex items-center justify-center overflow-hidden p-0.5">
+          <div className="relative group w-[104px] h-[126px] sm:w-[110px] sm:h-[132px] rounded-xl bg-black border border-black shadow-md flex items-center justify-center p-1 overflow-hidden transition-all hover:scale-[1.02]">
+            <div className="w-full h-full flex items-center justify-center overflow-hidden">
               <img
                 src={displayPreview || value.previewImage}
                 alt={`${label} capture`}
-                className="w-full h-full object-contain drop-shadow-md"
+                className="w-full h-full object-contain"
               />
-            </div>
-            <div className="w-full bg-black/90 py-1 px-2 rounded-lg flex items-center justify-between border border-slate-800 mt-1">
-              <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                <span className="text-xs font-bold text-emerald-400 font-mono tracking-tight">
-                  {value.qualityScore}% Quality
-                </span>
-              </div>
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-950/90 text-indigo-300 border border-indigo-700/60 font-mono tracking-tight">
-                <Sparkles className="w-2.5 h-2.5 text-indigo-400" />
-                AI HD
-              </span>
             </div>
           </div>
         ) : (
-          <GradientFingerprintIcon className="w-28 h-36 sm:w-32 sm:h-40 drop-shadow-sm" />
+          <GradientFingerprintIcon className="w-24 h-32 drop-shadow-sm" />
         )}
       </div>
 
